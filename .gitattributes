@@ -1,5 +1,4 @@
-@'
 *.go text eol=lf
-.github/workflows/*.yml text eol=lf
-.github/workflows/*.yaml text eol=lf
-'@ | Set-Content -Path .gitattributes -Encoding ascii
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
