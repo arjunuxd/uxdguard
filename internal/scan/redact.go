@@ -10,16 +10,12 @@ func RedactSecret(s string) string {
 	if s == "" {
 		return s
 	}
-	// Replace long token-like strings
-	// AWS keys
 	if len(s) > 20 {
-		// simple redaction: keep first 4 and last 4 if looks sensitive
 		if strings.Contains(s, "AKIA") || strings.Contains(s, "ASIA") {
 			if len(s) >= 16 {
 				return s[:4] + "..." + s[len(s)-4:]
 			}
 		}
-		// generic long hex/base64-like tokens
 		if len(s) > 32 {
 			return s[:4] + "..." + s[len(s)-4:]
 		}

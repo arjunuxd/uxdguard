@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/arjunuxd/uxdguard/internal/config"
 )
@@ -65,8 +66,8 @@ func Discover(root string, cfg *config.Config) ([]string, error) {
 		if cfg.Scan.MaxFileSizeBytes > 0 && info.Size() > cfg.Scan.MaxFileSizeBytes {
 			return nil // skip oversized
 		}
-		// Ensure inside root (no traversal) - basic
-		if rel != "." && (len(rel) > 0 && rel[0] == '.' && filepath.IsAbs(rel) == false && len(rel) >= 2 && rel[:2] == "..") {
+		// Ensure inside root (no traversal)
+		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || strings.HasPrefix(filepath.ToSlash(rel), "../") {
 			return errors.New("path traversal detected")
 		}
 		files = append(files, path)

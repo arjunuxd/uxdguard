@@ -76,23 +76,14 @@ func StagedFiles(repoRoot string) ([]string, error) {
 func GetStagedContent(repoRoot, relPath string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	// Try :0:path first (index), fallback to :path
-	// Use git show :relPath
+	// Use git show :path to read from index
 	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "show", ":"+relPath)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		// try with HEAD prefix if file added
-		cmd2 := exec.CommandContext(ctx, "git", "-C", repoRoot, "show", ":"+relPath)
-		out.Reset()
-		stderr.Reset()
-		cmd2.Stdout = &out
-		cmd2.Stderr = &stderr
-		if err2 := cmd2.Run(); err2 != nil {
-			return nil, fmt.Errorf("failed to read staged content: %s", strings.TrimSpace(stderr.String()))
-		}
+		return nil, fmt.Errorf("failed to read staged content: %s", strings.TrimSpace(stderr.String()))
 	}
 	return out.Bytes(), nil
 }

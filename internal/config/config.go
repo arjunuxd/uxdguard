@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -66,9 +67,13 @@ func Load(projectRoot, configPath string) (*Config, string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		// Prevent path outside project root if possible
-		if rel, err := filepath.Rel(absRoot, path); err != nil || (len(rel) > 0 && rel[0] == '.' && rel != ".uxdguard.yaml" && filepath.IsAbs(rel) == false && len(filepath.SplitList(rel)) >= 1 && rel[:1] == "..") {
-			// basic check - allow if under root
+		// Prevent path outside project root
+		if rel, err := filepath.Rel(absRoot, path); err == nil {
+			if strings.HasPrefix(filepath.ToSlash(rel), "../") || rel == ".." {
+				return nil, path, errors.New("config file must be within project root")
+			}
+		} else {
+			// if can't determine relation, proceed but be cautious
 		}
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {

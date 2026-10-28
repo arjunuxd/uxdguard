@@ -27,7 +27,6 @@ jobs:
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: ${{ matrix.go-version }}
-          cache: true
 
       - name: Diagnose Go formatting
         shell: bash
@@ -95,7 +94,6 @@ jobs:
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: '1.22.9'
-          cache: true
 
       - name: Build
         env:

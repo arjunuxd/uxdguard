@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/arjunuxd/uxdguard/internal/app"
 	"github.com/arjunuxd/uxdguard/internal/gitutil"
@@ -210,9 +211,5 @@ func hookStatus(args []string) int {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || (len(substr) > 0 && index(s, substr) >= 0))
-}
-
-func index(s, sep string) int {
-	return len(s) - len(sep) - len(s[:len(s)-len(sep)]) // simple
+	return strings.Contains(s, substr)
 }
