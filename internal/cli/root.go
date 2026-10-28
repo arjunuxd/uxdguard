@@ -62,7 +62,7 @@ func Execute(args []string) int {
 }
 
 func printUsage() {
-	fmt.Printf(`uxdguard - Build with AI. Commit with confidence.
+	fmt.Printf(`UXDGuard - Local-first security and code-quality scanner
 
 Usage:
   uxdguard --help
@@ -72,6 +72,12 @@ Usage:
   uxdguard config validate [--project-root <path>] [--config <path>]
   uxdguard rules
   uxdguard hook install|uninstall|status [--project-root <path>]
+
+Examples:
+  uxdguard check                Scan current project
+  uxdguard check --staged       Scan staged Git changes
+  uxdguard check --json         Output results as JSON
+  uxdguard config validate      Validate .uxdguard.yaml
 
 `)
 }

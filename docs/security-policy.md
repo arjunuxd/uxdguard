@@ -1,7 +1,8 @@
 # Security Policy
 
 ## Reporting Vulnerabilities
-Please report security issues responsibly via GitHub issues or to the repository maintainers. Do not disclose publicly until addressed.
+
+Report security issues responsibly via GitHub issues or to the repository maintainers. Do not disclose vulnerabilities publicly until they have been reviewed and addressed.
 
 ## Supported Versions
 Only the latest main branch is supported.

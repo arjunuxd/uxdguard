@@ -1,4 +1,4 @@
-# Optional External Scanner Integrations (Phase 4)
+# Optional External Scanner Integrations
 
 ## Supported Integrations
 - **gitleaks** (optional): Secret detection. Disabled by default. Requires gitleaks installed.

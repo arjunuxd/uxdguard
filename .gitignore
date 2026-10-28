@@ -28,9 +28,11 @@ go.work
 !.uxdguard.yaml.example
 
 # Project status reports
-docs/PROJECT-STATUS.md
 project-status.md
 STATUS.md
+
+# Architecture docs (root)
+# architecture.md
 
 # Temporary files
 *.tmp

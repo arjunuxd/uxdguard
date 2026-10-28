@@ -1,4 +1,4 @@
-# Git Staged Scanning and Pre-commit Hooks (Phase 3)
+# Git Staged Scanning and Pre-commit Hooks
 
 ## Staged Scanning
 Use `uxdguard check --staged` to scan files as they exist in the Git index (not the working tree).

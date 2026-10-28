@@ -54,7 +54,41 @@ These rules use pattern-based detection. They do not replace a full semantic sec
 
 ## Installation
 
-### Build from source
+### Option 1: Install with Go (recommended for global access)
+
+Module path: `github.com/arjunuxd/uxdguard` (from `go.mod`)
+
+Install the CLI globally:
+
+```bash
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest
+```
+
+Or install a specific version when available:
+
+```bash
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v0.1.0
+```
+
+The binary is placed in your Go bin directory. Find it with:
+
+```bash
+go env GOBIN
+go env GOPATH
+```
+
+Ensure that directory is in your `PATH` so you can run `uxdguard` from any project.
+
+**Windows (PowerShell):**
+1. Get your Go bin path: `go env GOPATH` (usually `C:\Users\<User>\go`) - binary goes to `$(go env GOPATH)\bin`
+2. Add that directory to your user PATH via System Settings, or in PowerShell: `$env:PATH += ";$(go env GOPATH)\bin"`
+3. Open a new terminal and verify: `Get-Command uxdguard; uxdguard --version`
+
+**Linux/macOS:**
+1. Ensure `$(go env GOPATH)/bin` or `$GOBIN` is in your PATH (add to `~/.bashrc`, `~/.zshrc`, etc.)
+2. Open a new shell and verify: `which uxdguard && uxdguard --version`
+
+### Option 2: Build from source (development)
 
 Clone the repository:
 
@@ -69,93 +103,83 @@ Build the CLI:
 go build -o uxdguard ./cmd/uxdguard
 ```
 
-On Windows PowerShell, use:
+On Windows PowerShell:
 
 ```powershell
 go build -o uxdguard.exe ./cmd/uxdguard
 ```
 
-Run the executable from the project directory or add its location to your `PATH`.
+Run from the project directory or add its location to your `PATH`.
 
-> UXDGuard is currently in pre-release development. A stable public release and published installation packages are not yet assumed to be available.
+### Option 3: Download release binaries
 
-## Usage
+When a release is published, download the appropriate binary for your platform from the GitHub Releases page, extract it, and add to your `PATH`. The release workflow produces Windows/Linux/macOS binaries with SHA256 checksums.
 
-The examples below show the supported CLI commands.
+> UXDGuard is currently in pre-release development (`0.1.0-dev`). A stable public release may not yet be published. Use `go install` from source or build locally if no release is available.
 
-### Display help
+### Updating and uninstalling
 
+- **Update:** Run `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest` again
+- **Uninstall:** Remove `uxdguard`/`uxdguard.exe` from your Go bin directory or from wherever it's installed
+- **Remove from PATH:** Remove the installation directory from your PATH if you added it specifically for UXDGuard
+
+## Quick Start
+
+### 1. Install UXDGuard
+
+**Using Go (recommended):**
 ```bash
-uxdguard --help
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest
 ```
 
-### Display version
+**From source:**
+```bash
+git clone https://github.com/arjunuxd/uxdguard.git
+cd uxdguard
+go build -o uxdguard ./cmd/uxdguard
+# Add to PATH or use ./uxdguard
+```
+
+See [Installation](#installation) section for Windows/Linux/macOS PATH setup.
+
+### 2. Navigate to your project
+```bash
+cd /path/to/your/project
+```
+
+### 3. Run a scan
 
 ```bash
+# Check version
 uxdguard --version
-```
 
-### Initialize configuration
-
-Create a starter configuration in the current project:
-
-```bash
-uxdguard init
-```
-
-### Scan a project
-
-```bash
+# Scan all files in current project
 uxdguard check
-```
 
-### Scan staged Git changes
-
-```bash
+# Scan only staged Git changes (before commit)
 uxdguard check --staged
-```
 
-Use this before committing to check the content staged in Git.
-
-### Generate JSON output
-
-```bash
+# Get JSON output for CI/scripts
 uxdguard check --json
-```
 
-### Validate configuration
+# List all built-in rules
+uxdguard rules
 
-```bash
+# Initialize configuration
+uxdguard init
+
+# Validate configuration
 uxdguard config validate
 ```
 
-### List available rules
-
-```bash
-uxdguard rules
-```
-
-### Manage the pre-commit hook
-
-Check hook status:
-
+### 4. Set up pre-commit hook (optional)
 ```bash
 uxdguard hook status
-```
-
-Install the hook:
-
-```bash
 uxdguard hook install
-```
-
-Uninstall the hook:
-
-```bash
 uxdguard hook uninstall
 ```
 
-Review the hook behavior and configuration before enabling it in an existing repository.
+**Note:** Git hooks can be bypassed with `git commit --no-verify`. They are not a security boundary.
 
 ## Configuration
 
@@ -255,7 +279,7 @@ Additional documentation is available in the repository:
 
 | Document | Description |
 |---|---|
-| `docs/architecture.md` | System architecture |
+| `architecture.md` | System architecture and file structure |
 | `docs/configuration.md` | Configuration options |
 | `docs/privacy.md` | Privacy and local-first behavior |
 | `docs/rules.md` | Built-in security rules |

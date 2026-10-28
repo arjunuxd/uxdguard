@@ -1,4 +1,4 @@
-# Built-in Rules (Phase 2)
+# Built-in Rules
 
 ## Secret Detection (`secrets`)
 
@@ -9,7 +9,7 @@
 | UXD-SEC-102 | Potential Slack token detected | high | high | Matches `xox...` token patterns. |
 | UXD-SEC-103 | Private key detected | critical | high | Detects PEM private key headers. |
 | UXD-SEC-104 | Database connection string with credentials detected | high | high | Detects URLs with embedded credentials for common DBs. |
-| UXD-SEC-105 | Hardcoded credential assignment detected | high | medium | Detects assignments like `password=...`, `api_key=...` etc. Skips placeholders (`YOUR_*`, `REPLACE_ME`, `example`, `changeme`, etc.). |
+| UXD-SEC-105 | Hardcoded credential assignment detected | high | medium | Detects assignments like `password=...`, `api_key=...` etc. Skips placeholders. |
 
 ## Source Code Security Checks (`sourcechecks`)
 
@@ -20,6 +20,27 @@
 | UXD-SEC-202 | Possible SQL string concatenation | high | medium | Heuristic for SQL built via concatenation/interpolation. |
 | UXD-SEC-203 | Insecure HTTP endpoint detected | medium | medium | Flags `http://` outside `localhost`/`127.0.0.1`/`::1`. |
 | UXD-SEC-204 | Potential unsafe deserialization | high | medium | Flags `pickle.loads` in `.py` and `ObjectInputStream` in `.java`. |
+
+## Advanced Security Checks (`advanced`)
+
+| Rule ID | Title | Severity (default) | Confidence | Notes |
+| --- | --- | --- | --- | --- |
+| UXD-SEC-300 | Potential command injection with shell execution | high | medium | Process execution with shell and dynamic input. |
+| UXD-SEC-301 | Potential path traversal | high | medium | Path construction with traversal patterns. |
+| UXD-SEC-302 | Potential XSS via unsafe HTML rendering | high | medium | Direct HTML injection sinks. |
+| UXD-SEC-303 | Potential SQL injection via string concatenation | high | medium | SQL built via string concatenation. |
+| UXD-SEC-304 | Potential open redirect | medium | medium | User-controlled redirect destinations. |
+| UXD-SEC-305 | Potential debug/admin endpoint exposed | medium | low | Debug or admin routes detected. |
+| UXD-SEC-400 | Insecure JWT verification | critical | high | Disabled or insecure JWT verification. |
+| UXD-SEC-401 | Hardcoded JWT secret | critical | high | JWT secret in source code. |
+| UXD-SEC-402 | Insecure cookie configuration | medium | medium | Missing HttpOnly/Secure flags. |
+| UXD-SEC-500 | Weak cryptographic hash | medium | medium | MD5/SHA1 usage. |
+| UXD-SEC-501 | Weak random number generation | high | medium | Predictable RNG for security purposes. |
+| UXD-SEC-502 | Hardcoded encryption key | critical | high | Encryption key in source code. |
+| UXD-SEC-503 | Potential secret logging | high | medium | Logging sensitive data. |
+| UXD-SEC-600 | Potential SSRF | high | medium | Requests with user-controlled URLs. |
+| UXD-SEC-601 | File upload handling detected | medium | low | File upload requires validation. |
+| UXD-SEC-602 | Unsafe deserialization | critical | high | Untrusted deserialization patterns. |
 
 ## Configuration
 
