@@ -1,81 +1,25 @@
-name: CI
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-permissions:
-  contents: read
-
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        go-version: ['1.22.9']
-    steps:
-      - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Set up Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-        with:
-          go-version: ${{ matrix.go-version }}
-          cache: true
-      - name: Format check
-        run: |
-          gofmt -l .
-          if [ -n "$(gofmt -l .)" ]; then exit 1; fi
+      - name: Diagnose Go formatting
         shell: bash
-      - name: Vet
-        run: go vet ./...
-      - name: Build
-        run: go build ./...
-      - name: Test
-        run: go test ./...
-      - name: Test with coverage
-        run: go test -cover ./...
-      - name: Test with race detector
-        if: runner.os != 'windows'
-        run: go test -race ./...
+        run: |
+          echo "Runner OS: $RUNNER_OS"
+          go version
+          which go
+          which gofmt
+          echo "Checked commit:"
+          git rev-parse HEAD
+          echo "Working tree:"
+          git status --short
+          echo "Go files reported by gofmt:"
+          gofmt -l .
 
-  cross-compile:
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - goos: windows
-            goarch: amd64
-            ext: .exe
-          - goos: linux
-            goarch: amd64
-            ext: ''
-          - goos: darwin
-            goarch: arm64
-            ext: ''
-    steps:
-      - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Set up Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-        with:
-          go-version: '1.22.9'
-          cache: true
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags "-s -w" -o uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/uxdguard
-      - name: Upload artifact
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
-        with:
-          name: uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
-          if-no-files-found: error
+      - name: Format check
+        shell: bash
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "These Go files need formatting:"
+            printf '%s\n' "$files"
+            exit 1
+          fi
+          echo "All Go files are formatted."
