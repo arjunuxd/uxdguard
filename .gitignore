@@ -1,0 +1,46 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+uxdguard-*
+dist/
+build/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, like `*.out`
+coverage
+coverage.*
+*.coverprofile
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# UXDGuard
+.uxdguard/
+.uxdguard.yaml
+!.uxdguard.yaml.example
+
+# Project status reports
+docs/PROJECT-STATUS.md
+project-status.md
+STATUS.md
+
+# Temporary files
+*.tmp
+*.log
+err.txt
+out.json
+jsonout.txt
+jsonout2.txt
+
+# UXDGuard build artifacts
+/uxdguard
+/dist/
+coverage.out

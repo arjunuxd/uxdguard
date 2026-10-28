@@ -1,0 +1,16 @@
+version: 1
+
+scan:
+  max_file_size_bytes: 1048576
+  follow_symlinks: false
+  exclusions:
+    - ".git/**"
+    - "vendor/**"
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+
+policy:
+  fail_on:
+    - critical
+    - high
