@@ -56,6 +56,9 @@ func Execute(args []string) int {
 	if args[0] == "hook" {
 		return cmdHook(args[1:])
 	}
+	if args[0] == "uninstall" {
+		return cmdUninstall(args[1:])
+	}
 	fmt.Fprintf(os.Stderr, "unknown command: %s\n", args[0])
 	printUsage()
 	return app.ExitUsageOrConfig
@@ -72,6 +75,7 @@ Usage:
   uxdguard config validate [--project-root <path>] [--config <path>]
   uxdguard rules
   uxdguard hook install|uninstall|status [--project-root <path>]
+  uxdguard uninstall [-y]
 
 Examples:
   uxdguard check                Scan current project

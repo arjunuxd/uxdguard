@@ -103,6 +103,8 @@ func (r *Registry) Run(ctx *Context) RunResult {
 		}
 	}
 	SortFindings(res.Findings)
+	res.Findings = DeduplicateFindings(res.Findings)
+	SortFindings(res.Findings)
 	return res
 }
 

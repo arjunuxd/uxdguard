@@ -40,7 +40,6 @@ type Finding struct {
 func SortFindings(findings []Finding) {
 	sort.Slice(findings, func(i, j int) bool {
 		if findings[i].Severity != findings[j].Severity {
-			// order by severity priority
 			order := map[Severity]int{SeverityCritical: 0, SeverityHigh: 1, SeverityMedium: 2, SeverityLow: 3, SeverityInfo: 4}
 			if order[findings[i].Severity] != order[findings[j].Severity] {
 				return order[findings[i].Severity] < order[findings[j].Severity]
@@ -57,4 +56,19 @@ func SortFindings(findings []Finding) {
 		}
 		return findings[i].Title < findings[j].Title
 	})
+}
+
+// DeduplicateFindings removes duplicate findings based on stable attributes
+func DeduplicateFindings(findings []Finding) []Finding {
+	seen := map[string]bool{}
+	var out []Finding
+	for _, f := range findings {
+		key := string(f.Severity) + "|" + f.RuleID + "|" + f.File + "|" + string(rune(f.Line)) + "|" + f.Title
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, f)
+	}
+	return out
 }

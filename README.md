@@ -120,8 +120,10 @@ When a release is published, download the appropriate binary for your platform f
 ### Updating and uninstalling
 
 - **Update:** Run `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest` again
-- **Uninstall:** Remove `uxdguard`/`uxdguard.exe` from your Go bin directory or from wherever it's installed
+- **Uninstall:** Run `uxdguard uninstall` to see instructions and optionally remove the executable (requires confirmation). If self-removal is blocked on your OS, remove it manually from your Go bin directory.
 - **Remove from PATH:** Remove the installation directory from your PATH if you added it specifically for UXDGuard
+
+**Note:** `go install` has no built-in uninstall registry. Uninstalling the CLI does not remove project configs, Git hooks, or cloned repositories.
 
 ## Quick Start
 

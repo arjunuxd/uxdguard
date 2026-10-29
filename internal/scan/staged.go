@@ -102,6 +102,8 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 		}
 	}
 	SortFindings(res.Findings)
+	res.Findings = DeduplicateFindings(res.Findings)
+	SortFindings(res.Findings)
 	return res, nil
 }
 
