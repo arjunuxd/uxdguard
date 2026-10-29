@@ -46,3 +46,6 @@ jsonout2.txt
 /uxdguard
 /dist/
 coverage.out
+
+# Project status reports
+PROJECT_STATUS.md

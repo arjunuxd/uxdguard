@@ -63,7 +63,7 @@ func DeduplicateFindings(findings []Finding) []Finding {
 	seen := map[string]bool{}
 	var out []Finding
 	for _, f := range findings {
-		key := string(f.Severity) + "|" + f.RuleID + "|" + f.File + "|" + string(rune(f.Line)) + "|" + f.Title
+		key := string(f.Severity) + "|" + f.RuleID + "|" + f.File + "|" + strconvItoa(f.Line) + "|" + strconvItoa(f.Column) + "|" + f.Title
 		if seen[key] {
 			continue
 		}
@@ -71,4 +71,27 @@ func DeduplicateFindings(findings []Finding) []Finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+func strconvItoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	neg := false
+	if i < 0 {
+		neg = true
+		i = -i
+	}
+	var buf [32]byte
+	b := len(buf)
+	for i > 0 {
+		b--
+		buf[b] = byte('0' + i%10)
+		i /= 10
+	}
+	if neg {
+		b--
+		buf[b] = '-'
+	}
+	return string(buf[b:])
 }

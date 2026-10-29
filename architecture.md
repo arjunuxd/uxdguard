@@ -232,7 +232,7 @@ F:.
 
 ## 8. Current State
 
-- Phases 1–5 complete
+- Core functionality implemented
 - Security fixes applied (path traversal, hooks, redaction)
 - Staged scanning and optional external adapters implemented
 - CI/release workflows in place

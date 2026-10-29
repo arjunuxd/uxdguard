@@ -37,6 +37,14 @@ func Discover(root string, cfg *config.Config) ([]string, error) {
 			if Excluded(rel, cfg.Scan.Exclusions) {
 				return filepath.SkipDir
 			}
+			// Prevent following symlinked directories outside root
+			if !cfg.Scan.FollowSymlinks {
+				if info, err := os.Lstat(path); err == nil {
+					if info.Mode()&os.ModeSymlink != 0 {
+						return filepath.SkipDir
+					}
+				}
+			}
 			return nil
 		}
 		// It's a file
@@ -67,7 +75,8 @@ func Discover(root string, cfg *config.Config) ([]string, error) {
 			return nil // skip oversized
 		}
 		// Ensure inside root (no traversal)
-		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || strings.HasPrefix(filepath.ToSlash(rel), "../") {
+		cleanRel := filepath.Clean(rel)
+		if cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) || strings.HasPrefix(filepath.ToSlash(cleanRel), "../") {
 			return errors.New("path traversal detected")
 		}
 		files = append(files, path)

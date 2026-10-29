@@ -25,11 +25,12 @@ func (s *SecretScanner) Description() string {
 
 var (
 	reAWSKey      = regexp.MustCompile(`\b(AKIA|ASIA)[A-Z0-9]{16}\b`)
-	reGitHubToken = regexp.MustCompile(`\bghp_[A-Za-z0-9]{36}\b|\bgho_[A-Za-z0-9]{36}\b|\bghu_[A-Za-z0-9]{36}\b|\bghs_[A-Za-z0-9]{36}\b|\bghr_[A-Za-z0-9]{36}\b`)
+	reGitHubToken = regexp.MustCompile(`\bghp_[A-Za-z0-9]{36}\b|\bgho_[A-Za-z0-9]{36}\b|\bghu_[A-Za-z0-9]{36}\b|\bghs_[A-Za-z0-9]{36}\b|\bghr_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{22,}\b`)
 	reSlackToken  = regexp.MustCompile(`\bxox[baprs]-[0-9a-zA-Z-]{10,48}\b`)
-	rePrivateKey  = regexp.MustCompile(`-----BEGIN (RSA|EC|DSA|OPENSSH|PGP) PRIVATE KEY-----`)
-	reDBConn      = regexp.MustCompile(`(?i)(postgres|mysql|mongodb(\+srv)?|redis)://[^:\s]+:[^@\s]+@[^\s/]+`)
-	reAssign      = regexp.MustCompile(`(?i)\b(password|passwd|api[_-]?key|secret|access[_-]?token|auth[_-]?token|private[_-]?key)\s*[:=]\s*["']([^"']{8,})["']`)
+	rePrivateKey  = regexp.MustCompile(`-----BEGIN (RSA|EC|DSA|OPENSSH|PGP|ENCRYPTED) PRIVATE KEY-----`)
+	reJWT         = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
+	reDBConn      = regexp.MustCompile(`(?i)(postgres|mysql|mongodb(\+srv)?|redis|mssql)://[^:\s]+:[^@\s]+@[^\s/]+`)
+	reAssign      = regexp.MustCompile(`(?i)\b(password|passwd|pwd|api[_-]?key|apikey|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|refresh[_-]?token|private[_-]?key)\s*[:=]\s*["']([^"']{8,})["']`)
 )
 
 var placeholders = map[string]bool{
@@ -110,6 +111,10 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 		for scanner.Scan() {
 			lineNum++
 			line := scanner.Text()
+			trim := strings.TrimSpace(line)
+			if trim == "" || strings.HasPrefix(trim, "//") || strings.HasPrefix(trim, "#") || strings.HasPrefix(trim, "*") {
+				continue
+			}
 			rel, _ := filepath.Rel(ctx.Root, f)
 			if rel == "" {
 				rel = f
@@ -176,17 +181,34 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 			}
 			// DB connection string
 			if reDBConn.MatchString(line) {
-				// avoid placeholder in conn? unlikely
+				low := strings.ToLower(line)
+				if !strings.Contains(low, "user:pass") && !strings.Contains(low, "example") && !strings.Contains(low, "your_") {
+					findings = append(findings, Finding{
+						RuleID:      "UXD-SEC-104",
+						ScannerID:   s.ID(),
+						Title:       "Database connection string with credentials detected",
+						Message:     "A connection string with embedded credentials was found.",
+						Severity:    Severity(getSeverity("UXD-SEC-104", string(SeverityHigh), ctx.Cfg)),
+						Confidence:  ConfidenceHigh,
+						File:        rel,
+						Line:        lineNum,
+						Remediation: "Use environment variables or a secret manager for database credentials.",
+					})
+					continue
+				}
+			}
+			// JWT
+			if reJWT.MatchString(line) {
 				findings = append(findings, Finding{
-					RuleID:      "UXD-SEC-104",
+					RuleID:      "UXD-SEC-106",
 					ScannerID:   s.ID(),
-					Title:       "Database connection string with credentials detected",
-					Message:     "A connection string with embedded credentials was found.",
-					Severity:    Severity(getSeverity("UXD-SEC-104", string(SeverityHigh), ctx.Cfg)),
-					Confidence:  ConfidenceHigh,
+					Title:       "Potential hardcoded JWT detected",
+					Message:     "A JSON Web Token was found hardcoded in source.",
+					Severity:    Severity(getSeverity("UXD-SEC-106", string(SeverityHigh), ctx.Cfg)),
+					Confidence:  ConfidenceMedium,
 					File:        rel,
 					Line:        lineNum,
-					Remediation: "Use environment variables or a secret manager for database credentials.",
+					Remediation: "Use secure token generation and storage; avoid hardcoding tokens.",
 				})
 				continue
 			}
