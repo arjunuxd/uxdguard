@@ -31,6 +31,10 @@ func Execute(args []string) int {
 		fmt.Printf("uxdguard version %s\n", version)
 		return app.ExitOK
 	}
+	if args[0] == "version" {
+		fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\nCommit: unknown\nBuild date: unknown\n", version)
+		return app.ExitOK
+	}
 	if args[0] == "init" {
 		return cmdInit(args[1:])
 	}
@@ -70,6 +74,7 @@ func printUsage() {
 Usage:
   uxdguard --help
   uxdguard --version
+  uxdguard version
   uxdguard init
   uxdguard check [--json] [--staged] [--project-root <path>]
   uxdguard config validate [--project-root <path>] [--config <path>]
