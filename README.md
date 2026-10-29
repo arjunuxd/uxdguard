@@ -6,7 +6,7 @@ UXDGuard scans source code and staged Git changes for potential security issues,
 
 Designed as a lightweight Go application, UXDGuard performs local scanning without uploading source code or sending telemetry.
 
-**Version:** `0.1.0-dev`  
+**Version:** `1.1.0-rc.1`  
 **Status:** Pre-release — human review pending
 
 ## Features
@@ -164,6 +164,9 @@ uxdguard check --staged
 # Get JSON output for CI/scripts
 uxdguard check --json
 
+# Check version
+uxdguard version
+
 # List all built-in rules
 uxdguard rules
 
@@ -303,7 +306,7 @@ Additional documentation is available in the repository:
 
 UXDGuard's core implementation, security checks, configuration, staged scanning, hook integration, optional scanner adapters, documentation, and release workflows have been reported as complete.
 
-The project remains at version `0.1.0-dev`, pending final human review and the first public release decision.
+Current release candidate: `1.1.0-rc.1`. Public testing release — external validation pending.
 
 ## License
 
