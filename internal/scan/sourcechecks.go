@@ -36,6 +36,9 @@ var (
 	reAuthBypass          = regexp.MustCompile(`(?i)(if\s*\([^)]*auth[^)]*\)\s*\{?\s*return\s+next|skipAuth|bypass.*auth|disable.*auth)`)
 	reBase64Eval          = regexp.MustCompile(`(?i)(atob|Buffer\.from\([^)]*,\s*['"]base64['"]\)|base64.*decode).*(eval|Function|exec)`)
 	reOpenRedirectSrc     = regexp.MustCompile(`(?i)(res\.redirect|window\.location|location\.href)\s*=\s*[^;]*(req\.|params|query|body)`)
+	rePlainPwd            = regexp.MustCompile(`(?i)function\s+\w*[Pp]ass\w*\s*\([^)]*\)\s*\{[^}]*return\s+.*(String\(|password|pwd)[^}]*\}`)
+	rePlainPwdAlt         = regexp.MustCompile(`(?i)return\s+String\s*\(\s*\w*[Pp]ass\w*\s*\)`)
+	rePwdCompare          = regexp.MustCompile(`(?i)(input|password|pwd|pass)\s*===?\s*(stored|hash|password|pwd|pass)|\w*[Pp]ass\w*\s*===?\s*\w*[Pp]ass\w*`)
 )
 
 func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
@@ -279,6 +282,43 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 					Remediation: "Use allowlists for redirect destinations or relative paths only.",
 				})
 				continue
+			}
+			// Plaintext password handling
+			if rePlainPwd.MatchString(line) || rePlainPwdAlt.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.Contains(l, "bcrypt") || strings.Contains(l, "argon2") || strings.Contains(l, "pbkdf2") || strings.Contains(l, "scrypt") {
+					continue
+				}
+				findings = append(findings, Finding{
+					RuleID:      "UXD-SEC-212",
+					ScannerID:   s.ID(),
+					Title:       "Plaintext password handling detected",
+					Message:     "Returning or storing passwords in plaintext is insecure.",
+					Severity:    Severity(getSeverity("UXD-SEC-212", string(SeverityHigh), ctx.Cfg)),
+					Confidence:  ConfidenceHigh,
+					File:        rel,
+					Line:        lineNum,
+					Remediation: "Use a strong password hashing algorithm (e.g., bcrypt, argon2, PBKDF2).",
+				})
+				continue
+			}
+			// Direct password comparison
+			if rePwdCompare.MatchString(line) {
+				l := strings.ToLower(line)
+				if !strings.Contains(l, "bcrypt") && !strings.Contains(l, "argon2") && !strings.Contains(l, "pbkdf2") && !strings.Contains(l, "scrypt") {
+					findings = append(findings, Finding{
+						RuleID:      "UXD-SEC-213",
+						ScannerID:   s.ID(),
+						Title:       "Insecure password comparison",
+						Message:     "Comparing plaintext passwords with === is insecure and timing-vulnerable.",
+						Severity:    Severity(getSeverity("UXD-SEC-213", string(SeverityHigh), ctx.Cfg)),
+						Confidence:  ConfidenceMedium,
+						File:        rel,
+						Line:        lineNum,
+						Remediation: "Use constant-time comparison and proper password hash verification.",
+					})
+					continue
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
