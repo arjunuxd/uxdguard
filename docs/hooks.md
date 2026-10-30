@@ -1,37 +1,35 @@
-# Git Staged Scanning and Pre-commit Hooks
+﻿# Git Hooks
 
 ## Staged Scanning
-Use `uxdguard check --staged` to scan files as they exist in the Git index (not the working tree).
+Scan only staged changes before committing:
 
-Key behaviors:
-- Scans index/blob contents for staged files
-- Respects exclusions and file-size limits
-- Uses existing Phase 2 rules
-- Reports relative paths from repo root
-- Returns exit code 1 if blocking findings found, 0 if clean, 2 for config/usage errors, 3 for operational errors
-- Works with `--json` for machine-readable output
+```bash
+uxdguard check --staged
+```
 
-Correctness:
-- If you stage a secret and then remove it from working tree without staging, it is still detected in the index
-- If a secret only exists in unstaged changes, it is not reported by `--staged`
+This scans files as they exist in the Git index, respects exclusions and size limits, and uses the same rules as a normal scan.
 
 ## Hook Management
-```powershell
-uxdguard hook status
+Install, check status, or remove the pre-commit hook:
+
+```bash
 uxdguard hook install
+uxdguard hook status
 uxdguard hook uninstall
 ```
 
-Safety:
-- Never overwrites existing non-UXDGuard hooks
-- Never modifies global Git config
-- Only removes hooks it created (marked with marker)
-- Idempotent install
-- Hook invokes `uxdguard check --staged` and exits with its status code
+## Behavior
+- The hook runs `uxdguard check --staged` before commits.
+- If blocking findings are detected, the commit is prevented based on the hook''s exit code.
+- Hook installation is safe and only modifies hooks it creates.
+- You can bypass hooks with `git commit --no-verify` if needed.
+
+## Requirements
+- Git must be installed
+- The project must be a Git repository
+- Hooks are project-local by default
 
 ## Limitations
-- Requires Git installed and a git repository
-- Binary files skipped
-- Some edge cases with complex renames may need additional testing
-- Windows hook execution uses shell wrapper as created
-- Users can bypass hooks with `git commit --no-verify`
+- Binary files may be skipped
+- Complex rename scenarios may have edge cases
+- Hook behavior depends on your Git and shell environment

@@ -1,8 +1,11 @@
-# Configuration
+﻿# Configuration
 
-## File
+## Configuration File
+UXDGuard looks for `.uxdguard.yaml` in the project root. If no configuration file is found, built-in defaults are used. You can generate a starter file with:
 
-Configuration is read from `.uxdguard.yaml` in the project root. If not present, defaults are used. A starter example is written by `uxdguard init` as `.uxdguard.yaml.example`.
+```bash
+uxdguard init
+```
 
 ## Schema (v1)
 
@@ -18,6 +21,15 @@ scan:
     - "node_modules/**"
     - "dist/**"
     - "build/**"
+    - ".next/**"
+    - ".nuxt/**"
+    - "coverage/**"
+    - ".turbo/**"
+    - ".cache/**"
+    - "out/**"
+    - "__pycache__/**"
+    - ".venv/**"
+    - "venv/**"
 
 policy:
   fail_on:
@@ -25,27 +37,28 @@ policy:
     - high
 ```
 
-## Defaults
+## Options
 
-- `version`: 1
-- `scan.max_file_size_bytes`: 1048576 (1MB)
-- `scan.follow_symlinks`: false
-- `scan.exclusions`: includes `.git/**`, `vendor/**`, `node_modules/**`, `dist/**`, `build/**`
-- `policy.fail_on`: `["critical", "high"]`
+| Setting | Type | Default | Description |
+| --- | --- | --- | --- |
+| `version` | number | `1` | Configuration schema version. |
+| `scan.max_file_size_bytes` | number | `1048576` | Maximum file size to scan (bytes). |
+| `scan.follow_symlinks` | boolean | `false` | Whether to follow symbolic links. |
+| `scan.exclusions` | list | See above | Patterns for files and directories to exclude. |
+| `policy.fail_on` | list | `["critical", "high"]` | Severities that cause a non-zero exit code. |
 
 ## Validation
-
 - `version` must be `1`
 - `max_file_size_bytes` must be positive
 - Exclusion patterns must be non-empty
-- `fail_on` severities must be one of `critical`, `high`, `medium`, `low`, `info`
-- Malformed YAML produces a clear error with file context
-- Missing optional config file is not an error (defaults used)
+- `fail_on` values must be one of: `critical`, `high`, `medium`, `low`, `info`
+- Invalid configuration produces clear errors
 
-## Discovery and Precedence
+## Precedence
+1. CLI flags (e.g., `--project-root`)
+2. `.uxdguard.yaml` in the project root
+3. Built-in defaults
 
-1. CLI flags: `--project-root`, `--config` (where applicable)
-2. Config file discovery: look for `.uxdguard.yaml` in resolved project root
-3. Defaults applied for missing fields
-
-`init` does not overwrite existing configuration.
+## Notes
+- Creating configuration with `uxdguard init` does not overwrite existing files.
+- Exclusions are matched against relative paths from the project root.

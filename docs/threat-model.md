@@ -1,30 +1,40 @@
-# Threat Model
+﻿# Threat Model
 
-## Assets
-- Source code and configuration
-- Secrets/credentials
-- Git index and hooks
-- User environment
+## Purpose
+UXDGuard is a local-first security scanner that helps developers identify common security issues in source code before committing changes. This document describes its intended scope and general security considerations at a high level.
 
-## Threats and Mitigations
+## Assets Protected
+- Source code and project files under review
+- Developer credentials and secrets present in repositories
+- Git workflow integrity (when using staged scanning and hooks)
 
-| Threat | Impact | Mitigation | Residual Risk |
-| --- | --- | --- | --- |
-| Accidental secrets in commits | High | Built-in secret detection, staged scanning, pre-commit hook; redaction in outputs | Pattern-based, may miss obfuscated secrets |
-| Path traversal | High | Path validation, stay within repo root, no shell execution | Complex symlink cases |
-| Malicious repo content | Medium | No code execution, size limits, binary detection | Some parsers could be stressed |
-| Malformed config | Medium | Validation, clear errors | Unknown fields handled per design |
-| External tool output abuse | Medium | Defensive parsing, no shell interpolation, timeouts | Depends on external tool |
-| Hook tampering | Medium | Marker-based install/uninstall, refuse to overwrite unknown hooks | Users can use --no-verify |
-| Info leakage | High | Redaction, no secrets in logs/errors, relative paths by default | Debugging may need care |
-| Resource exhaustion | Medium | Size limits, timeouts, bounded buffers | Very large repos still take time |
+## Intended Usage
+- Run locally on developer machines
+- Scan project directories without executing scanned code
+- Optionally scan staged Git changes
+- Use as part of local development workflows
 
-## Assumptions
-- Local-first, no network required for core functionality
-- Git available for staged/hook features
-- Users review findings
+## General Risks Considered
+- Accidental exposure of secrets or credentials
+- Common insecure coding patterns
+- Misconfiguration in project files
+- Path traversal attempts in untrusted repositories
 
-## Non-goals
-- Complete security guarantee
-- Malware detection
-- Full SAST replacement
+## Security Principles
+- **Local-first**: Core scanning runs entirely on the user's machine.
+- **No code execution**: Scanned files are never executed.
+- **Read-only by default**: Normal scans do not modify the target repository.
+- **Least privilege**: Only accesses files under the scanned project root.
+- **Safe reporting**: Outputs are designed to avoid exposing sensitive values.
+
+## User Responsibilities
+- Review findings and remediation guidance
+- Use appropriate secret management practices
+- Keep UXDGuard up to date
+- Understand the limitations of pattern-based scanning
+
+## Known Limitations
+- Pattern-based detection only; not a complete replacement for security review or dynamic analysis
+- May produce false positives or false negatives
+- Some risks require context that static pattern matching cannot determine
+- External integrations, if used, have their own behaviors and limitations
