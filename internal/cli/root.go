@@ -7,7 +7,11 @@ import (
 	"github.com/arjunuxd/uxdguard/internal/app"
 )
 
-var version = "dev"
+var (
+	version   = "1.1.0"
+	commit    = ""
+	buildDate = ""
+)
 
 // SetVersion allows overriding version at build time
 func SetVersion(v string) {
@@ -28,19 +32,11 @@ func Execute(args []string) int {
 		return app.ExitOK
 	}
 	if args[0] == "--version" || args[0] == "-v" {
-		if version == "dev" {
-			fmt.Printf("uxdguard version dev\n")
-		} else {
-			fmt.Printf("uxdguard version %s\n", version)
-		}
+		fmt.Printf("uxdguard version %s\n", version)
 		return app.ExitOK
 	}
 	if args[0] == "version" {
-		if version == "dev" {
-			fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: dev\n")
-		} else {
-			fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\n", version)
-		}
+		fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\n", version)
 		return app.ExitOK
 	}
 	if args[0] == "init" {
