@@ -1,245 +1,179 @@
-﻿<div align="center">
-
-# UXDGuard
+﻿# UXDGuard
 
 **Build with AI. Commit with confidence.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+UXDGuard is a lightweight, local-first security scanner for developers. It helps identify exposed secrets, insecure coding patterns, and common security issues in source code and staged Git changes before they are committed.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.22.9+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](#supported-platforms)
 
-*A lightweight, local-first security scanner that helps developers catch secrets, insecure patterns, and common vulnerabilities before they reach production.*
+## Overview
 
-[Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
+UXDGuard runs entirely on your local machine with no telemetry, no source uploads, and no mandatory network access. It uses pattern-based detection to provide fast, actionable feedback during development and in pre-commit workflows.
 
-</div>
+## Key Features
 
-## ✨ Features
+- **Secret Detection** - Identifies API keys, access tokens, private keys, credentials, and database connection strings
+- **Security Checks** - Detects SQL injection, command injection, XSS, SSRF, path traversal, weak cryptography, and more
+- **Password Safety** - Flags plaintext password handling and insecure password comparisons
+- **Staged Scanning** - Scan only Git-staged changes with `uxdguard check --staged`
+- **Git Hooks** - Integrate checks into your pre-commit workflow
+- **Configurable Rules** - Enable, disable, or adjust severities via `.uxdguard.yaml`
+- **Smart Exclusions** - Automatically skips dependencies, build outputs, and generated files while preserving manifests
+- **Pagination & Filtering** - Navigate large result sets with page-based output (20 results per page by default)
+- **JSON Output** - Machine-readable results for CI/CD integration
+- **Optional Integrations** - Support for Gitleaks and Semgrep when explicitly enabled
+- **Local-First** - No code execution, no telemetry, no external data transfer
 
-- **🔐 Secret Detection** – Catch API keys, tokens, private keys, database credentials, and connection strings
-- **🛡️ Security Analysis** – Detect SQL injection, XSS, command injection, SSRF, weak crypto, and more
-- **🔑 Password Safety** – Identify plaintext password handling and insecure comparisons
-- **📦 Staged Scanning** – Review only Git-staged changes with `--staged` before committing
-- **🪝 Git Hooks** – Automate checks with pre-commit hooks
-- **⚙️ Configurable** – Fine-tune rules and severities via `.uxdguard.yaml`
-- **🚫 Smart Exclusions** – Auto-skip `node_modules`, `.next`, `dist`, `build`, and other generated directories
-- **📄 Pagination & Filtering** – Navigate large result sets with ease (20 results per page by default)
-- **📊 JSON Output** – CI/CD ready with complete, machine-readable reports
-- **🔌 Optional Integrations** – Extend with [Gitleaks](https://github.com/gitleaks/gitleaks) and [Semgrep](https://github.com/semgrep/semgrep)
-- **🏠 Local-First** – Runs entirely offline, no telemetry, no uploads, no code execution
+## Supported Platforms
 
-## 🎯 Supported Platforms
+- Windows
+- Linux
+- macOS
 
-| OS | Status |
-| --- | --- |
-| Windows | ✅ Supported |
-| Linux | ✅ Supported |
-| macOS | ✅ Supported |
+## Requirements
 
-## 📋 Prerequisites
+- [Go](https://go.dev/) 1.22.9 or later (for installation from source)
+- [Git](https://git-scm.com/) (for staged scanning and Git hooks)
 
-- [Go](https://go.dev/) 1.22.9 or higher (for building from source)
-- [Git](https://git-scm.com/) (required for staged scanning and hooks)
+## Installation
 
-## 🚀 Installation
-
-### Option 1: Install with Go (Recommended)
+### Install with Go
 
 ```bash
 go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest
 ```
 
-Ensure your Go binary directory is in your `PATH`:
-
-<details>
-<summary><b>Windows (PowerShell)</b></summary>
-
-```powershell
-$env:PATH += ";$(go env GOPATH)\bin"
-# Add to your profile for persistence
-```
-
-</details>
-
-<details>
-<summary><b>Linux / macOS (Bash/Zsh)</b></summary>
-
-```bash
-export PATH="$(go env GOPATH)/bin:$PATH"
-# Add to ~/.bashrc, ~/.zshrc, or ~/.profile
-```
-
-</details>
-
-Verify your installation:
+Ensure your Go bin directory is in your `PATH`. Verify the installation:
 
 ```bash
 uxdguard version
 uxdguard rules
 ```
 
-### Option 2: Build from Source
+### Build from Source
 
 ```bash
 git clone https://github.com/arjunuxd/uxdguard.git
 cd uxdguard
-go build ./cmd/uxdguard
+go build -o uxdguard ./cmd/uxdguard
 ```
 
-On Windows, the binary will be `uxdguard.exe`. Add it to your `PATH` or run it directly.
+On Windows, use `uxdguard.exe`. Add the binary to your `PATH` or run it from the build directory.
 
-### Option 3: Download Binaries
+### Pre-built Binaries
 
-Pre-built binaries are available on the [Releases](https://github.com/arjunuxd/uxdguard/releases) page when published.
+Pre-built binaries and checksums are available on the [GitHub Releases](https://github.com/arjunuxd/uxdguard/releases) page when published.
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
-# Navigate to your project
-cd /path/to/your-project
-
-# Run a full scan
+# Scan the current project
 uxdguard check
 
-# Scan only staged changes (ideal for pre-commit)
+# Scan only staged changes
 uxdguard check --staged
 
-# Get JSON output for CI
+# Generate JSON output
 uxdguard check --json
 
-# View paginated results with filters
+# View results with pagination and filters
 uxdguard check --page 1 --limit 20 --severity high
 
-# List all security rules
-uxdguard rules
+# Initialize configuration
+uxdguard init
+
+# Validate configuration
+uxdguard config validate
+
+# Manage pre-commit hooks
+uxdguard hook status
+uxdguard hook install
+uxdguard hook uninstall
 ```
 
-## 💡 Usage
+## Usage
 
-### Commands
+### Pagination and Filtering
 
-| Command | Description |
-| --- | --- |
-| `uxdguard check` | Scan all files in the current project |
-| `uxdguard check --staged` | Scan only Git-staged changes |
-| `uxdguard check --json` | Output results in JSON format |
-| `uxdguard init` | Create a starter `.uxdguard.yaml` config |
-| `uxdguard config validate` | Validate your configuration |
-| `uxdguard rules` | Display all active security rules |
-| `uxdguard hook install` | Install pre-commit hook |
-| `uxdguard hook status` | Check hook status |
-| `uxdguard hook uninstall` | Remove pre-commit hook |
-| `uxdguard version` | Show version information |
-| `uxdguard uninstall` | Uninstall UXDGuard |
-
-### Pagination & Filtering
+By default, terminal output shows 20 findings per page. You can navigate and filter results:
 
 ```bash
-# Default: 20 results per page
-uxdguard check
-
-# Custom page size
-uxdguard check --limit 50
-
-# Navigate pages
-uxdguard check --page 2
-
-# Filter by severity
+uxdguard check --page 2 --limit 50
 uxdguard check --severity critical
-
-# Filter by specific rule
 uxdguard check --rule UXD-SEC-101
-
-# Combine filters
-uxdguard check --severity high --limit 10
 ```
 
-**Note:** JSON output (`--json`) always returns complete results without pagination.
+JSON output always includes the complete result set without truncation.
+
+### Default Exclusions
+
+The following directories are excluded by default: `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.cache`, `coverage`, `target`, `out`, `.venv`, `venv`, `__pycache__`, `.terraform`, `.idea`, `.vscode`. Dependency manifests and lockfiles remain discoverable.
 
 ### Configuration
 
-Create and customize your configuration:
+Create a starter configuration file:
 
 ```bash
 uxdguard init
 ```
 
-This generates `.uxdguard.yaml` in your project root. Validate it with:
+Edit `.uxdguard.yaml` in your project root as needed, then validate it:
 
 ```bash
 uxdguard config validate
 ```
 
-See [Configuration Guide](docs/configuration.md) for all available options.
+Refer to [docs/configuration.md](docs/configuration.md) for the full schema and options.
 
-### Default Exclusions
+## Privacy and Security
 
-UXDGuard automatically skips common directories to improve performance:
+- **Local-first**: Core scanning runs locally with no mandatory network access
+- **No telemetry**: No analytics, tracking, or data collection
+- **No code execution**: Scanned files are never executed
+- **Safe output**: Findings are reported without exposing raw secret values
+- **Optional integrations**: External tools are disabled by default
+- **Pattern-based**: Detection is heuristic-based; false positives and negatives are possible
 
-```
-.git, node_modules, vendor, dist, build, .next, .nuxt, .svelte-kit,
-.turbo, .cache, coverage, target, out, .venv, venv, __pycache__,
-.terraform, .idea, .vscode
-```
+For details, see [docs/privacy.md](docs/privacy.md), [docs/threat-model.md](docs/threat-model.md), and [docs/security-policy.md](docs/security-policy.md).
 
-Dependency manifests (`package.json`, `go.mod`, `requirements.txt`, `pom.xml`, etc.) are always preserved.
-
-## 🔒 Privacy & Security
-
-- **Local-First** – All scanning happens on your machine. No data leaves your system.
-- **No Telemetry** – Zero tracking, analytics, or usage data collection.
-- **No Code Execution** – Files are read statically, never executed.
-- **Safe Reporting** – Secret values are redacted from all outputs.
-- **Optional Integrations** – External tools are disabled by default and only used if explicitly enabled.
-- **Open Source** – Fully auditable codebase.
-
-> **Note:** UXDGuard uses pattern-based detection and may produce false positives or miss issues. It's a helpful guardrail, not a replacement for comprehensive security reviews.
-
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 | --- | --- |
-| [Configuration](docs/configuration.md) | Schema, defaults, and options |
-| [Rules](docs/rules.md) | Complete list of built-in security rules |
-| [Git Hooks](docs/hooks.md) | Pre-commit hook setup and usage |
-| [External Scanners](docs/external-scanners.md) | Gitleaks and Semgrep integration |
-| [Privacy](docs/privacy.md) | Data handling and privacy policy |
-| [Threat Model](docs/threat-model.md) | Security assumptions and scope |
-| [Security Policy](docs/security-policy.md) | Reporting vulnerabilities |
-| [Architecture](architecture.md) | Technical design overview |
+| [docs/configuration.md](docs/configuration.md) | Configuration options and defaults |
+| [docs/rules.md](docs/rules.md) | Built-in security rules and categories |
+| [docs/hooks.md](docs/hooks.md) | Staged scanning and Git hooks |
+| [docs/external-scanners.md](docs/external-scanners.md) | Gitleaks and Semgrep integrations |
+| [docs/privacy.md](docs/privacy.md) | Privacy and data handling |
+| [docs/threat-model.md](docs/threat-model.md) | Threat model and assumptions |
+| [docs/security-policy.md](docs/security-policy.md) | Reporting security issues |
+| [architecture.md](architecture.md) | System architecture overview |
 
-## 🛠️ Development
+## Development
 
 ```bash
-# Build
+# Build all packages
 go build ./...
 
 # Run tests
 go test ./...
 
-# Static analysis
+# Run static analysis
 go vet ./...
 
 # Format code
 gofmt -l .
 ```
 
-## 🗑️ Uninstall
+## Uninstall
 
 ```bash
 uxdguard uninstall
 ```
 
-If self-removal is blocked by your OS, manually delete the `uxdguard` binary from your Go bin directory.
+If self-removal is blocked by your operating system, remove the `uxdguard` binary manually from your Go bin directory.
 
-## 📄 License
+## License
 
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-<div align="center">
-
-**Made with ❤️ for developers who build with AI**
-
-</div>
+[MIT License](LICENSE)
