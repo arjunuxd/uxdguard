@@ -18,6 +18,11 @@ func cmdCheck(args []string) int {
 	jsonOut := false
 	projectRoot := ""
 	staged := false
+	page := 1
+	limit := 100
+	severity := ""
+	ruleFilter := ""
+	noProgress := false
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--json" {
 			jsonOut = true
@@ -27,13 +32,37 @@ func cmdCheck(args []string) int {
 			staged = true
 			continue
 		}
+		if args[i] == "--no-progress" {
+			noProgress = true
+			continue
+		}
 		if args[i] == "--project-root" && i+1 < len(args) {
 			projectRoot = args[i+1]
 			i++
 			continue
 		}
+		if args[i] == "--page" && i+1 < len(args) {
+			fmt.Sscanf(args[i+1], "%d", &page)
+			i++
+			continue
+		}
+		if args[i] == "--limit" && i+1 < len(args) {
+			fmt.Sscanf(args[i+1], "%d", &limit)
+			i++
+			continue
+		}
+		if args[i] == "--severity" && i+1 < len(args) {
+			severity = args[i+1]
+			i++
+			continue
+		}
+		if args[i] == "--rule" && i+1 < len(args) {
+			ruleFilter = args[i+1]
+			i++
+			continue
+		}
 		if args[i] == "-h" || args[i] == "--help" {
-			fmt.Printf("Usage: uxdguard check [--json] [--staged] [--project-root <path>]\n")
+			fmt.Printf("Usage: uxdguard check [--json] [--staged] [--project-root <path>] [--page <n>] [--limit <n>] [--severity <level>] [--rule <id>] [--no-progress]\n")
 			return app.ExitOK
 		}
 		fmt.Fprintf(os.Stderr, "unknown flag: %s\n", args[i])
@@ -68,7 +97,13 @@ func cmdCheck(args []string) int {
 			}
 		} else {
 			tr := &report.TerminalReporter{Out: os.Stdout, Err: os.Stderr}
-			tr.Report(res, repoRoot, version)
+			tr.ReportWithOptions(res, repoRoot, version, report.ReportOptions{
+				Page:       page,
+				Limit:      limit,
+				Severity:   severity,
+				Rule:       ruleFilter,
+				NoProgress: noProgress,
+			})
 		}
 		exit := scan.EvaluatePolicy(cfg, res)
 		return exit
@@ -99,7 +134,13 @@ func cmdCheck(args []string) int {
 		}
 	} else {
 		tr := &report.TerminalReporter{Out: os.Stdout, Err: os.Stderr}
-		tr.Report(res, root, version)
+		tr.ReportWithOptions(res, root, version, report.ReportOptions{
+			Page:       page,
+			Limit:      limit,
+			Severity:   severity,
+			Rule:       ruleFilter,
+			NoProgress: noProgress,
+		})
 	}
 	// Evaluate policy
 	exit := scan.EvaluatePolicy(cfg, res)

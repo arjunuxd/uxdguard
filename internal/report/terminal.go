@@ -32,6 +32,15 @@ func colorEnabled(w io.Writer) bool {
 	return false
 }
 
+// ReportOptions controls pagination and filtering for terminal output.
+type ReportOptions struct {
+	Page       int
+	Limit      int
+	Severity   string
+	Rule       string
+	NoProgress bool
+}
+
 // TerminalReporter prints human readable output.
 type TerminalReporter struct {
 	Out io.Writer
@@ -40,6 +49,17 @@ type TerminalReporter struct {
 
 // Report writes terminal output.
 func (t *TerminalReporter) Report(res scan.RunResult, root string, version string) {
+	t.ReportWithOptions(res, root, version, ReportOptions{Page: 1, Limit: 100})
+}
+
+// ReportWithOptions writes terminal output with pagination.
+func (t *TerminalReporter) ReportWithOptions(res scan.RunResult, root string, version string, opts ReportOptions) {
+	if opts.Limit <= 0 {
+		opts.Limit = 100
+	}
+	if opts.Page <= 0 {
+		opts.Page = 1
+	}
 	useColor := colorEnabled(t.Out)
 
 	if useColor {
@@ -65,12 +85,43 @@ func (t *TerminalReporter) Report(res scan.RunResult, root string, version strin
 	}
 
 	if len(res.Findings) > 0 {
-		if useColor {
-			fmt.Fprintf(t.Out, "%sFindings%s\n\n", bold, reset)
-		} else {
-			fmt.Fprintf(t.Out, "Findings:\n\n")
-		}
+		// Apply filtering
+		filtered := make([]scan.Finding, 0, len(res.Findings))
 		for _, f := range res.Findings {
+			if opts.Severity != "" {
+				if !strings.EqualFold(string(f.Severity), opts.Severity) {
+					continue
+				}
+			}
+			if opts.Rule != "" {
+				if !strings.EqualFold(f.RuleID, opts.Rule) {
+					continue
+				}
+			}
+			filtered = append(filtered, f)
+		}
+		total := len(filtered)
+		totalPages := (total + opts.Limit - 1) / opts.Limit
+		if totalPages == 0 {
+			totalPages = 1
+		}
+		if opts.Page > totalPages {
+			opts.Page = totalPages
+		}
+		start := (opts.Page - 1) * opts.Limit
+		end := start + opts.Limit
+		if end > total {
+			end = total
+		}
+		if useColor {
+			fmt.Fprintf(t.Out, "%sFindings%s (showing %d-%d of %d total)%s\n", bold, reset, start+1, end, total, reset)
+			fmt.Fprintf(t.Out, "%sPage %d of %d%s\n\n", gray, opts.Page, totalPages, reset)
+		} else {
+			fmt.Fprintf(t.Out, "Findings: (showing %d-%d of %d total)\n", start+1, end, total)
+			fmt.Fprintf(t.Out, "Page %d of %d\n\n", opts.Page, totalPages)
+		}
+		for i := start; i < end; i++ {
+			f := filtered[i]
 			loc := f.File
 			if f.Line > 0 {
 				loc = fmt.Sprintf("%s:%d", f.File, f.Line)
@@ -104,6 +155,19 @@ func (t *TerminalReporter) Report(res scan.RunResult, root string, version strin
 				fmt.Fprintf(t.Out, "         Remediation: %s\n", f.Remediation)
 			}
 			fmt.Fprintf(t.Out, "\n")
+		}
+		if totalPages > 1 {
+			fmt.Fprintf(t.Out, "To view more: uxdguard check --page %d --limit %d%s%s\n\n", opts.Page+1, opts.Limit, func() string {
+				if opts.Severity != "" {
+					return " --severity " + opts.Severity
+				}
+				return ""
+			}(), func() string {
+				if opts.Rule != "" {
+					return " --rule " + opts.Rule
+				}
+				return ""
+			}())
 		}
 	}
 

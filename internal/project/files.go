@@ -12,6 +12,15 @@ import (
 
 // Discover finds all eligible files under root.
 func Discover(root string, cfg *config.Config) ([]string, error) {
+	return discoverInternal(root, cfg, nil)
+}
+
+// DiscoverWithProgress finds all eligible files under root with progress callback.
+func DiscoverWithProgress(root string, cfg *config.Config, progress func(count int)) ([]string, error) {
+	return discoverInternal(root, cfg, progress)
+}
+
+func discoverInternal(root string, cfg *config.Config, progress func(count int)) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -80,6 +89,9 @@ func Discover(root string, cfg *config.Config) ([]string, error) {
 			return errors.New("path traversal detected")
 		}
 		files = append(files, path)
+		if progress != nil {
+			progress(len(files))
+		}
 		return nil
 	})
 	if err != nil {
