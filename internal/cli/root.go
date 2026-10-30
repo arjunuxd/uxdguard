@@ -3,17 +3,41 @@ package root
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 
 	"github.com/arjunuxd/uxdguard/internal/app"
 )
 
 var version = "dev"
+var versionOverridden bool
 
-// SetVersion allows overriding version at build time
+// SetVersion allows overriding the version at build time using linker flags.
 func SetVersion(v string) {
 	if v != "" {
-		version = v
+		version = strings.TrimPrefix(v, "v")
+		versionOverridden = true
 	}
+}
+
+// resolveVersion detects the Go module version when no linker version is supplied.
+func resolveVersion() string {
+	// Explicit linker-injected version takes priority.
+	if versionOverridden {
+		return version
+	}
+
+	// Read Go module build information.
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return strings.TrimPrefix(info.Main.Version, "v")
+	}
+
+	return "dev"
 }
 
 // Execute runs the CLI.
@@ -22,47 +46,62 @@ func Execute(args []string) int {
 		printUsage()
 		return app.ExitUsageOrConfig
 	}
+
 	// Global flags
 	if args[0] == "--help" || args[0] == "-h" {
 		printUsage()
 		return app.ExitOK
 	}
+
 	if args[0] == "--version" || args[0] == "-v" {
-		fmt.Printf("uxdguard version %s\n", version)
+		fmt.Printf("uxdguard version %s\n", resolveVersion())
 		return app.ExitOK
 	}
+
 	if args[0] == "version" {
-		fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\n", version)
+		fmt.Printf(
+			"UXDGuard\nSecurity Scanner\nVersion: %s\n",
+			resolveVersion(),
+		)
 		return app.ExitOK
 	}
+
 	if args[0] == "init" {
 		return cmdInit(args[1:])
 	}
+
 	if args[0] == "check" {
 		return cmdCheck(args[1:])
 	}
+
 	if args[0] == "config" {
 		if len(args) < 2 {
 			fmt.Fprintf(os.Stderr, "missing subcommand\n")
 			printUsage()
 			return app.ExitUsageOrConfig
 		}
+
 		if args[1] == "validate" {
 			return cmdConfigValidate(args[2:])
 		}
+
 		fmt.Fprintf(os.Stderr, "unknown config subcommand\n")
 		printUsage()
 		return app.ExitUsageOrConfig
 	}
+
 	if args[0] == "rules" {
 		return cmdRules(args[1:])
 	}
+
 	if args[0] == "hook" {
 		return cmdHook(args[1:])
 	}
+
 	if args[0] == "uninstall" {
 		return cmdUninstall(args[1:])
 	}
+
 	fmt.Fprintf(os.Stderr, "unknown command: %s\n", args[0])
 	printUsage()
 	return app.ExitUsageOrConfig
