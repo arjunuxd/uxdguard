@@ -14,6 +14,7 @@ var versionOverridden bool
 
 // SetVersion allows overriding the version at build time using linker flags.
 func SetVersion(v string) {
+	v = strings.TrimSpace(v)
 	if v != "" {
 		version = strings.TrimPrefix(v, "v")
 		versionOverridden = true
@@ -22,19 +23,23 @@ func SetVersion(v string) {
 
 // resolveVersion detects the Go module version when no linker version is supplied.
 func resolveVersion() string {
-	// Explicit linker-injected version takes priority.
+	// Explicit linker-injected release version takes priority.
 	if versionOverridden {
 		return version
 	}
 
-	// Read Go module build information.
+	// Read embedded Go module build information.
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return "dev"
 	}
 
-	if info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return strings.TrimPrefix(info.Main.Version, "v")
+	// Only use a valid module version.
+	moduleVersion := strings.TrimSpace(info.Main.Version)
+	if info.Main.Path == "github.com/arjunuxd/uxdguard" &&
+		moduleVersion != "" &&
+		moduleVersion != "(devel)" {
+		return strings.TrimPrefix(moduleVersion, "v")
 	}
 
 	return "dev"
@@ -76,7 +81,7 @@ func Execute(args []string) int {
 
 	if args[0] == "config" {
 		if len(args) < 2 {
-			fmt.Fprintf(os.Stderr, "missing subcommand\n")
+			fmt.Fprintln(os.Stderr, "missing subcommand")
 			printUsage()
 			return app.ExitUsageOrConfig
 		}
@@ -85,7 +90,7 @@ func Execute(args []string) int {
 			return cmdConfigValidate(args[2:])
 		}
 
-		fmt.Fprintf(os.Stderr, "unknown config subcommand\n")
+		fmt.Fprintln(os.Stderr, "unknown config subcommand")
 		printUsage()
 		return app.ExitUsageOrConfig
 	}
