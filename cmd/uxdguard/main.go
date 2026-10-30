@@ -11,6 +11,8 @@ var version string
 func main() {
 	if version != "" {
 		cli.SetVersion(version)
+	} else {
+		cli.SetVersion("1.1.0")
 	}
 	os.Exit(cli.Execute(os.Args[1:]))
 }
