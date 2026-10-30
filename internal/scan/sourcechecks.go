@@ -305,21 +305,26 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 			// Direct password comparison
 			if rePwdCompare.MatchString(line) {
 				l := strings.ToLower(line)
-				if !strings.Contains(l, "bcrypt") && !strings.Contains(l, "argon2") && !strings.Contains(l, "pbkdf2") && !strings.Contains(l, "scrypt") {
-					findings = append(findings, Finding{
-						RuleID:      "UXD-SEC-213",
-						ScannerID:   s.ID(),
-						Title:       "Insecure password comparison",
-						Message:     "Comparing plaintext passwords with === is insecure and timing-vulnerable.",
-						Severity:    Severity(getSeverity("UXD-SEC-213", string(SeverityHigh), ctx.Cfg)),
-						Confidence:  ConfidenceMedium,
-						File:        rel,
-						Line:        lineNum,
-						Remediation: "Use constant-time comparison and proper password hash verification.",
-					})
-					continue
+				if strings.Contains(l, "bcrypt") || strings.Contains(l, "argon2") || strings.Contains(l, "pbkdf2") || strings.Contains(l, "scrypt") {
+					goto skipPwd2
 				}
+				if (strings.Contains(l, "confirmpassword") || strings.Contains(l, "confirmpass") || strings.Contains(l, "passwordconfirm") || strings.Contains(l, "password") && strings.Contains(l, "confirm")) && strings.Contains(line, "===") {
+					goto skipPwd2
+				}
+				findings = append(findings, Finding{
+					RuleID:      "UXD-SEC-213",
+					ScannerID:   s.ID(),
+					Title:       "Insecure password comparison",
+					Message:     "Comparing plaintext passwords with === is insecure and timing-vulnerable.",
+					Severity:    Severity(getSeverity("UXD-SEC-213", string(SeverityHigh), ctx.Cfg)),
+					Confidence:  ConfidenceMedium,
+					File:        rel,
+					Line:        lineNum,
+					Remediation: "Use constant-time comparison and proper password hash verification.",
+				})
+				continue
 			}
+		skipPwd2:
 		}
 		if err := scanner.Err(); err != nil {
 			errs = append(errs, Error{ScannerID: s.ID(), Message: "error reading file"})

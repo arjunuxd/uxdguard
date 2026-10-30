@@ -30,12 +30,20 @@ var (
 	rePrivateKey  = regexp.MustCompile(`-----BEGIN (RSA|EC|DSA|OPENSSH|PGP|ENCRYPTED) PRIVATE KEY-----`)
 	reJWT         = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
 	reDBConn      = regexp.MustCompile(`(?i)(postgres|mysql|mongodb(\+srv)?|redis|mssql)://[^:\s]+:[^@\s]+@[^\s/]+`)
-	reAssign      = regexp.MustCompile(`(?i)\b(password|passwd|pwd|api[_-]?key|apikey|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|refresh[_-]?token|private[_-]?key)\s*[:=]\s*["']([^"']{8,})["']`)
+	reAssign      = regexp.MustCompile(`(?i)^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.+)$`)
+	reGoogleKey   = regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)
+	reResendKey   = regexp.MustCompile(`\bre_[A-Za-z0-9]{24,}\b`)
+	reRazorpayKey = regexp.MustCompile(`\brzp_(live|test)_[A-Za-z0-9]{14,}\b`)
+	rePosthogKey  = regexp.MustCompile(`\bphc_[A-Za-z0-9]{32,}\b`)
+	reStripeKey   = regexp.MustCompile(`\bsk_(live|test)_[A-Za-z0-9]{24,}\b|\brk_(live|test)_[A-Za-z0-9]{24,}\b`)
+	reSendGridKey = regexp.MustCompile(`\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b`)
+	reDiscordHook = regexp.MustCompile(`https://discord(?:app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+`)
+	reCloudinary  = regexp.MustCompile(`cloudinary://[0-9]+:[A-Za-z0-9_-]+@[A-Za-z0-9_-]+`)
 )
 
 var placeholders = map[string]bool{
 	"your_api_key": true, "replace_me": true, "example": true, "changeme": true, "password": true, "secret": true, "token": true,
-	"xxxx": true, "test": true, "dummy": true, "sample": true,
+	"xxxx": true, "test": true, "dummy": true, "sample": true, "placeholder": true,
 }
 
 func isPlaceholder(v string) bool {
@@ -43,27 +51,51 @@ func isPlaceholder(v string) bool {
 	if lv == "" {
 		return true
 	}
+	// exact matches
 	if placeholders[lv] {
 		return true
 	}
-	if strings.Contains(lv, "your_") || strings.Contains(lv, "replace") || strings.Contains(lv, "example") || strings.Contains(lv, "changeme") {
+	// common placeholder patterns but be careful not to block real secrets
+	if lv == "your_secret_key" || lv == "your_api_key_here" || lv == "insert_key_here" {
 		return true
 	}
 	if strings.HasPrefix(lv, "xxx") || strings.HasPrefix(lv, "yyy") {
 		return true
 	}
+	// only block if it's clearly a placeholder, not if it contains these words
+	if lv == "example" || lv == "test" || lv == "changeme" {
+		return true
+	}
 	return false
+}
+
+func stripQuotes(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			return s[1 : len(s)-1]
+		}
+	}
+	// remove inline comments for shell/env style
+	if idx := strings.Index(s, " #"); idx > 0 {
+		s = strings.TrimSpace(s[:idx])
+	}
+	if idx := strings.Index(s, " //"); idx > 0 {
+		s = strings.TrimSpace(s[:idx])
+	}
+	return strings.TrimSpace(s)
 }
 
 func isRuleEnabled(id string, cfg *config.Config) bool {
 	if cfg == nil {
 		return true
 	}
-	// check disable first
+	// check disable first (supports rule IDs and scanner IDs)
 	for _, d := range cfg.Rules.Disable {
 		if d == id {
 			return false
 		}
+		// also check if disabling scanner
 	}
 	if len(cfg.Rules.Enable) > 0 {
 		for _, e := range cfg.Rules.Enable {
@@ -212,28 +244,72 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
-			// Assignment pattern
+			// Provider-specific patterns
+			if reGoogleKey.MatchString(line) {
+				findings = append(findings, Finding{
+					RuleID: "UXD-SEC-100", ScannerID: s.ID(), Title: "Potential Google API key detected",
+					Message: "A string matching Google API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-100", string(SeverityHigh), ctx.Cfg)),
+					Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and use environment variables or a secure secret manager.",
+				})
+				continue
+			}
+			if reResendKey.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Resend API key detected", Message: "A string matching Resend API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				continue
+			}
+			if reRazorpayKey.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Razorpay key detected", Message: "A string matching Razorpay key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				continue
+			}
+			if rePosthogKey.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential PostHog key detected", Message: "A string matching PostHog key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				continue
+			}
+			if reStripeKey.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Stripe key detected", Message: "A string matching Stripe key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityCritical), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				continue
+			}
+			if reSendGridKey.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential SendGrid API key detected", Message: "A string matching SendGrid API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				continue
+			}
+			if reDiscordHook.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Discord webhook URL detected", Message: "A Discord webhook URL was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove webhook URLs from source control and use secure storage."})
+				continue
+			}
+			if reCloudinary.MatchString(line) {
+				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Cloudinary credentials detected", Message: "Cloudinary URL with credentials was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and use environment variables."})
+				continue
+			}
+			// Assignment pattern (quoted and unquoted)
 			if m := reAssign.FindStringSubmatch(line); len(m) == 3 {
-				val := m[2]
+				key := strings.ToUpper(m[1])
+				val := stripQuotes(m[2])
 				if isPlaceholder(val) {
 					continue
 				}
-				// skip very short
 				if len(val) < 8 {
 					continue
 				}
-				findings = append(findings, Finding{
-					RuleID:      "UXD-SEC-105",
-					ScannerID:   s.ID(),
-					Title:       "Hardcoded credential assignment detected",
-					Message:     "A suspicious hardcoded credential assignment was found.",
-					Severity:    Severity(getSeverity("UXD-SEC-105", string(SeverityHigh), ctx.Cfg)),
-					Confidence:  ConfidenceMedium,
-					File:        rel,
-					Line:        lineNum,
-					Remediation: "Move credentials to environment variables or a secure secret manager.",
-				})
-				continue
+				// skip common non-secret keys
+				if key == "NODE_ENV" || key == "PORT" || key == "HOST" {
+					continue
+				}
+				// check if key suggests secret
+				if strings.Contains(key, "SECRET") || strings.Contains(key, "TOKEN") || strings.Contains(key, "KEY") || strings.Contains(key, "PASSWORD") || strings.Contains(key, "API_KEY") || strings.Contains(key, "PRIVATE") {
+					findings = append(findings, Finding{
+						RuleID:      "UXD-SEC-105",
+						ScannerID:   s.ID(),
+						Title:       "Hardcoded credential assignment detected",
+						Message:     "A suspicious hardcoded credential assignment was found.",
+						Severity:    Severity(getSeverity("UXD-SEC-105", string(SeverityHigh), ctx.Cfg)),
+						Confidence:  ConfidenceMedium,
+						File:        rel,
+						Line:        lineNum,
+						Remediation: "Move credentials to environment variables or a secure secret manager.",
+					})
+					continue
+				}
 			}
 		}
 		if err := scanner.Err(); err != nil {

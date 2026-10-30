@@ -55,7 +55,7 @@ func (t *TerminalReporter) Report(res scan.RunResult, root string, version strin
 // ReportWithOptions writes terminal output with pagination.
 func (t *TerminalReporter) ReportWithOptions(res scan.RunResult, root string, version string, opts ReportOptions) {
 	if opts.Limit <= 0 {
-		opts.Limit = 100
+		opts.Limit = 20
 	}
 	if opts.Page <= 0 {
 		opts.Page = 1

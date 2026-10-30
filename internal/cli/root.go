@@ -7,7 +7,7 @@ import (
 	"github.com/arjunuxd/uxdguard/internal/app"
 )
 
-var version = "0.1.0-dev"
+var version = "dev"
 
 // SetVersion allows overriding version at build time
 func SetVersion(v string) {
@@ -28,11 +28,19 @@ func Execute(args []string) int {
 		return app.ExitOK
 	}
 	if args[0] == "--version" || args[0] == "-v" {
-		fmt.Printf("uxdguard version %s\n", version)
+		if version == "dev" {
+			fmt.Printf("uxdguard version dev\n")
+		} else {
+			fmt.Printf("uxdguard version %s\n", version)
+		}
 		return app.ExitOK
 	}
 	if args[0] == "version" {
-		fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\nCommit: unknown\nBuild date: unknown\n", version)
+		if version == "dev" {
+			fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: dev\n")
+		} else {
+			fmt.Printf("UXDGuard\nSecurity Scanner\nVersion: %s\n", version)
+		}
 		return app.ExitOK
 	}
 	if args[0] == "init" {
@@ -76,7 +84,7 @@ Usage:
   uxdguard --version
   uxdguard version
   uxdguard init
-  uxdguard check [--json] [--staged] [--project-root <path>]
+  uxdguard check [--json] [--staged] [--project-root <path>] [--page <n>] [--limit <n>] [--severity <level>] [--rule <id>] [--no-progress]
   uxdguard config validate [--project-root <path>] [--config <path>]
   uxdguard rules
   uxdguard hook install|uninstall|status [--project-root <path>]

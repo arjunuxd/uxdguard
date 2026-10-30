@@ -28,7 +28,7 @@ var (
 	reSQLConcatAdv  = regexp.MustCompile(`(?i)(SELECT|INSERT|UPDATE|DELETE).*(\+|concat|%s|\$\{)`)
 	reOpenRedirect  = regexp.MustCompile(`(?i)(redirect|Location).*http|res\.redirect\(.*req\.|header.*location`)
 	reDebugEndpoint = regexp.MustCompile(`(?i)(/debug|/admin|/swagger|/api-docs|/actuator)`)
-	reJWTVerify     = regexp.MustCompile(`(?i)(jwt\.verify|verify.*false|algorithms.*\[.*none.*\]|"alg".*"none")`)
+	reJWTVerify     = regexp.MustCompile(`(?i)(jwt\.verify\s*\(|verify.*false|algorithms.*\[.*none.*\]|"alg"\s*:\s*"none")`)
 	reJWTSecret     = regexp.MustCompile(`(?i)(jwt.*secret|JWT_SECRET)\s*[:=]\s*["'][^"']{4,}["']`)
 	reCookieInsec   = regexp.MustCompile(`(?i)(Set-Cookie|cookie).*HttpOnly\s*=\s*false|Secure\s*=\s*false`)
 	reWeakHash      = regexp.MustCompile(`(?i)(md5\.|sha1\.|MD5|SHA1)\(|\bmd5\b|\bsha1\b`)
@@ -73,6 +73,10 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 
 			// Command injection
 			if reExecCmd.MatchString(line) {
+				// Skip in test files and documentation patterns
+				if strings.Contains(relSlash, "tests/") || strings.HasSuffix(relSlash, "_test.go") || strings.Contains(relSlash, "docs/") || strings.HasSuffix(relSlash, ".md") {
+					goto skipCmd
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-300", ScannerID: a.ID(), Title: "Potential command injection with shell execution",
 					Message: "Process execution with shell=true and dynamic input can lead to command injection.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -80,8 +84,12 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipCmd:
 			// Path traversal
 			if rePathJoin.MatchString(line) && strings.Contains(line, "..") {
+				if strings.Contains(relSlash, "docs/") || strings.HasSuffix(relSlash, ".md") {
+					goto skipPath
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-301", ScannerID: a.ID(), Title: "Potential path traversal",
 					Message: "Path construction with user input may allow directory traversal.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -89,8 +97,22 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipPath:
 			// XSS
 			if reInnerHTML.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.Contains(l, "json-ld") || strings.Contains(l, "application/ld+json") {
+					goto skipXSS2
+				}
+				if strings.Contains(l, "json.stringify") && !strings.Contains(line, "${") && !strings.Contains(line, "+") {
+					goto skipXSS2
+				}
+				if strings.Contains(l, "xmlns") {
+					goto skipXSS2
+				}
+				if strings.Contains(relSlash, "tests/") {
+					goto skipXSS2
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-302", ScannerID: a.ID(), Title: "Potential XSS via unsafe HTML rendering",
 					Message: "Direct HTML injection can lead to cross-site scripting.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -98,8 +120,21 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipXSS2:
 			// SQL injection broader
 			if reSQLConcatAdv.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.Contains(l, "selectitem") || strings.Contains(l, "template deleted") {
+					goto skipSQLAdv
+				}
+				if strings.Contains(relSlash, "tests/fixtures/") || strings.Contains(relSlash, "docs/") {
+					goto skipSQLAdv
+				}
+				if !strings.Contains(l, "query") && !strings.Contains(l, "execute") && !strings.Contains(l, "exec") && !strings.Contains(l, "$where") && !strings.Contains(l, "db.") {
+					if !regexp.MustCompile(`(?i)(select|insert|update|delete|drop|create)\s+`).MatchString(line) {
+						goto skipSQLAdv
+					}
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-303", ScannerID: a.ID(), Title: "Potential SQL injection via string concatenation",
 					Message: "SQL queries built with string concatenation are vulnerable to injection.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -107,8 +142,15 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipSQLAdv:
 			// Open redirect
 			if reOpenRedirect.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.Contains(l, "accounts.google.com") || strings.Contains(l, "oauth") && strings.Contains(l, "google") {
+					if !strings.Contains(line, "${") && !strings.Contains(line, "+ req") {
+						goto skipRedirect
+					}
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-304", ScannerID: a.ID(), Title: "Potential open redirect",
 					Message: "Redirecting to user-controlled URLs can lead to phishing.", Severity: SeverityMedium, Confidence: ConfidenceMedium,
@@ -116,8 +158,16 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipRedirect:
 			// Debug endpoints
 			if reDebugEndpoint.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
+					goto skipAdmin2
+				}
+				if strings.Contains(l, "\"/admin") && !strings.Contains(l, "router") && !strings.Contains(l, "app.") && !strings.Contains(l, "route") {
+					goto skipAdmin2
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-305", ScannerID: a.ID(), Title: "Potential debug/admin endpoint exposed",
 					Message: "Debug or administrative endpoints may be exposed in production.", Severity: SeverityMedium, Confidence: ConfidenceLow,
@@ -125,8 +175,19 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipAdmin2:
 			// JWT issues
 			if reJWTVerify.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
+					goto skipJWT
+				}
+				if strings.Contains(l, "verify") && strings.Contains(l, "throws") {
+					goto skipJWT
+				}
+				if strings.Contains(relSlash, "docs/") || strings.Contains(relSlash, "tests/fixtures/") {
+					goto skipJWT
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-400", ScannerID: a.ID(), Title: "Insecure JWT verification",
 					Message: "JWT verification may be disabled or using insecure algorithms.", Severity: SeverityCritical, Confidence: ConfidenceHigh,
@@ -134,6 +195,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipJWT:
 			if reJWTSecret.MatchString(line) && !isPlaceholder(line) {
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-401", ScannerID: a.ID(), Title: "Hardcoded JWT secret",
@@ -177,6 +239,17 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				continue
 			}
 			if reLogSecret.MatchString(line) {
+				l := strings.ToLower(line)
+				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
+					goto skipLog2
+				}
+				if !strings.Contains(l, "console.") && !strings.Contains(l, "log(") && !strings.Contains(l, "logger") {
+					goto skipLog2
+				}
+				// skip function signatures
+				if strings.Contains(line, "function") && strings.Contains(line, "(") && !strings.Contains(l, "console.") && !strings.Contains(l, "log(") {
+					goto skipLog2
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-503", ScannerID: a.ID(), Title: "Potential secret logging",
 					Message: "Logging sensitive data may expose secrets.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -184,8 +257,17 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipLog2:
 			// SSRF
 			if reSSRF.MatchString(line) {
+				l := strings.ToLower(line)
+				// skip hardcoded known safe URLs
+				if strings.Contains(l, "googleapis.com") || strings.Contains(l, "fonts.googleapis.com") || strings.Contains(l, "schema.org") {
+					// only skip if it's clearly hardcoded static
+					if !strings.Contains(line, "${") && !strings.Contains(line, "+") {
+						goto skipSSRF
+					}
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-600", ScannerID: a.ID(), Title: "Potential SSRF",
 					Message: "Making requests with user-controlled URLs can lead to SSRF.", Severity: SeverityHigh, Confidence: ConfidenceMedium,
@@ -193,6 +275,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipSSRF:
 			// File upload
 			if reFileUpload.MatchString(line) {
 				findings = append(findings, Finding{
@@ -204,6 +287,9 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 			}
 			// Unsafe deserialization
 			if reDeserPickle.MatchString(line) {
+				if strings.Contains(relSlash, "docs/") || strings.Contains(relSlash, "tests/fixtures/") {
+					goto skipDeser
+				}
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-602", ScannerID: a.ID(), Title: "Unsafe deserialization",
 					Message: "Deserializing untrusted data can lead to remote code execution.", Severity: SeverityCritical, Confidence: ConfidenceHigh,
@@ -211,6 +297,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
+		skipDeser:
 		}
 		if err := scanner.Err(); err != nil {
 			errs = append(errs, Error{ScannerID: a.ID(), Message: "error reading file"})

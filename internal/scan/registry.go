@@ -94,6 +94,28 @@ func (r *Registry) Run(ctx *Context) RunResult {
 			default:
 			}
 		}
+		// Check if scanner disabled
+		scannerID := s.ID()
+		if ctx != nil && ctx.Cfg != nil {
+			// check scanner disable
+			for _, d := range ctx.Cfg.Rules.Disable {
+				if d == scannerID {
+					continue
+				}
+			}
+			if len(ctx.Cfg.Rules.Enable) > 0 {
+				enabled := false
+				for _, e := range ctx.Cfg.Rules.Enable {
+					if e == scannerID {
+						enabled = true
+						break
+					}
+				}
+				if !enabled {
+					continue
+				}
+			}
+		}
 		findings, errs := s.Run(ctx)
 		if len(findings) > 0 {
 			res.Findings = append(res.Findings, findings...)

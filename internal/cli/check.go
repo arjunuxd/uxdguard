@@ -19,7 +19,7 @@ func cmdCheck(args []string) int {
 	projectRoot := ""
 	staged := false
 	page := 1
-	limit := 100
+	limit := 20
 	severity := ""
 	ruleFilter := ""
 	noProgress := false
