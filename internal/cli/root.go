@@ -7,11 +7,7 @@ import (
 	"github.com/arjunuxd/uxdguard/internal/app"
 )
 
-var (
-	version   = "1.1.0"
-	commit    = ""
-	buildDate = ""
-)
+var version = "dev"
 
 // SetVersion allows overriding version at build time
 func SetVersion(v string) {

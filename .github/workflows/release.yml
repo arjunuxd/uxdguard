@@ -43,7 +43,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
-          go build -ldflags "-s -w -X main.version=$VERSION" -o uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/uxdguard
+          go build -ldflags "-s -w -X github.com/arjunuxd/uxdguard/internal/cli.version=$VERSION" -o uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/uxdguard
       - name: Generate checksum
         run: |
           sha256sum uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} > uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}.sha256
