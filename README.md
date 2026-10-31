@@ -69,13 +69,38 @@ On Windows the output is `uxdguard.exe`.
 
 ### Go Module Installation
 
-`go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` is **not usable
-for this release**. A pre-release artifact was previously published under the
-`v1.1.0` version on 2026-10-29 and then replaced. The public module proxy and
-checksum database keep that earlier artifact permanently, so `v1.1.0` and
-`@latest` resolve to the old code, while `GOPROXY=direct` fails checksum
-verification. Use the pre-built binaries or build from source until a later
-module version is published. Full details are in
+The default proxy path for `v1.1.0` is stale. A pre-release artifact was
+previously published under the `v1.1.0` version on 2026-10-29 and then
+replaced; `proxy.golang.org` and `sum.golang.org` keep that earlier artifact
+permanently. Plain `go install ...@v1.1.0` therefore builds the old code, and
+`GOPROXY=direct` alone fails checksum verification.
+
+Bypass the stale proxy and checksum entry for this module:
+
+```bash
+GOPRIVATE='github.com/arjunuxd/*' go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:GOPRIVATE='github.com/arjunuxd/*'
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
+```
+
+`GOPRIVATE` makes Go fetch the module directly from GitHub and skip the
+checksum database for this path. Verified result:
+
+```text
+UXDGuard
+Security Scanner
+Version: 1.1.0
+Commit: unknown
+Build date: unknown
+```
+
+`Commit` and `Build date` are `unknown` for module installs because Go module
+archives do not carry VCS metadata. Full details are in
 [docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
 
 Verify any installation:
@@ -96,7 +121,7 @@ installing Go binaries.
 2. Go module metadata when installed with `go install ...@version`;
 3. The truthful fallback `dev` for an untagged local build.
 
-Release binaries therefore report `1.1.0`, while a clean `go install ...@version` reports the module version selected by Go. The current `v1.1.0` module version is affected by the proxy issue described under [Go Module Installation](#go-module-installation), so the binaries or a source build are the supported installation paths for this release.
+Release binaries therefore report `1.1.0`, while a clean `go install ...@version` reports the module version selected by Go. Because the default `v1.1.0` proxy entry is stale, use the `GOPRIVATE` install command shown under [Go Module Installation](#go-module-installation), the published binaries, or a source build.
 
 ## Quick Start
 
