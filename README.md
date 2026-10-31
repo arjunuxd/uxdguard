@@ -31,65 +31,118 @@ UXDGuard runs entirely on your local machine. Built-in scanning requires no tele
 
 ## Supported Platforms
 
-| Operating System | Support |
-|---|---|
-| Windows | Supported |
-| Linux | Supported |
-| macOS | Supported |
+| Operating System | Architecture | Release binary |
+|---|---|---|
+| Windows 10/11 | amd64 | `uxdguard-windows-amd64.exe` |
+| Linux | amd64 | `uxdguard-linux-amd64` |
+| macOS | Apple Silicon (arm64) | `uxdguard-darwin-arm64` |
 
-Release binaries are published for Windows amd64, Linux amd64, and macOS arm64. Other Go-supported targets can be built from source.
+Other Go-supported targets can be built from source.
 
 ## Requirements
 
-| Dependency | Version | Purpose |
-|---|---|---|
-| [Go](https://go.dev/) | 1.22.9 or later | Installation from source |
-| [Git](https://git-scm.com/) | Any recent version | Staged scanning and Git hooks |
+You do not need Go or any other dependency to run a release binary.
 
-## Installation
+| Dependency | Needed for |
+|---|---|
+| [Go](https://go.dev/) 1.22.9 or later | Building from source or installing with `go install` |
+| [Git](https://git-scm.com/) | `--staged` scans and Git hooks only |
 
-### Pre-built Binaries (Recommended)
+## Install
 
-Download official binaries and SHA-256 checksums from the [latest release](https://github.com/arjunuxd/uxdguard/releases/latest).
+### Option 1: Download a release binary (recommended)
+
+Download from the [latest release](https://github.com/arjunuxd/uxdguard/releases/latest). Every binary has a matching `.sha256` file.
+
+#### Windows (PowerShell)
+
+```powershell
+$v = "v1.1.0"
+$u = "https://github.com/arjunuxd/uxdguard/releases/download/$v"
+
+Invoke-WebRequest "$u/uxdguard-windows-amd64.exe" -OutFile uxdguard.exe
+Invoke-WebRequest "$u/uxdguard-windows-amd64.exe.sha256" -OutFile uxdguard.exe.sha256
+
+Get-Content .\uxdguard.exe.sha256
+(Get-FileHash .\uxdguard.exe -Algorithm SHA256).Hash.ToLower()
+```
+
+The two hashes must match. Then run it:
+
+```powershell
+.\uxdguard.exe version
+```
+
+To call it from any directory, move `uxdguard.exe` into a folder on your `PATH`, for example:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\uxdguard" | Out-Null
+Move-Item .\uxdguard.exe "$env:LOCALAPPDATA\uxdguard\uxdguard.exe"
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:LOCALAPPDATA\uxdguard", "User")
+```
+
+Open a new terminal, then check `uxdguard version`.
+
+#### Linux (x86_64)
 
 ```bash
+V=v1.1.0
+U="https://github.com/arjunuxd/uxdguard/releases/download/$V"
+
+curl -LO "$U/uxdguard-linux-amd64"
+curl -LO "$U/uxdguard-linux-amd64.sha256"
+
 sha256sum -c uxdguard-linux-amd64.sha256
+chmod +x uxdguard-linux-amd64
+sudo mv uxdguard-linux-amd64 /usr/local/bin/uxdguard
+
+uxdguard version
 ```
 
-### Build from Source
+#### macOS (Apple Silicon)
 
 ```bash
-git clone https://github.com/arjunuxd/uxdguard.git
-cd uxdguard
-git checkout v1.1.0
-go build ./cmd/uxdguard
+V=v1.1.0
+U="https://github.com/arjunuxd/uxdguard/releases/download/$V"
+
+curl -LO "$U/uxdguard-darwin-arm64"
+curl -LO "$U/uxdguard-darwin-arm64.sha256"
+
+shasum -a 256 -c uxdguard-darwin-arm64.sha256
+chmod +x uxdguard-darwin-arm64
+xattr -d com.apple.quarantine uxdguard-darwin-arm64 2>/dev/null || true
+sudo mv uxdguard-darwin-arm64 /usr/local/bin/uxdguard
+
+uxdguard version
 ```
 
-On Windows the output is `uxdguard.exe`.
+### Option 2: Install with Go
 
-### Go Module Installation
+This release needs one extra variable because Go's public proxy still holds an
+older artifact for the `v1.1.0` version (see [Known Installation Issue](#known-installation-issue)).
+`GOPRIVATE` makes Go fetch the tag directly from GitHub.
 
-The default proxy path for `v1.1.0` is stale. A pre-release artifact was
-previously published under the `v1.1.0` version on 2026-10-29 and then
-replaced; `proxy.golang.org` and `sum.golang.org` keep that earlier artifact
-permanently. Plain `go install ...@v1.1.0` therefore builds the old code, and
-`GOPROXY=direct` alone fails checksum verification.
-
-Bypass the stale proxy and checksum entry for this module:
+Linux and macOS:
 
 ```bash
 GOPRIVATE='github.com/arjunuxd/*' go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
 ```
 
-On Windows PowerShell:
+Windows PowerShell:
 
 ```powershell
-$env:GOPRIVATE='github.com/arjunuxd/*'
+$env:GOPRIVATE = 'github.com/arjunuxd/*'
 go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
 ```
 
-`GOPRIVATE` makes Go fetch the module directly from GitHub and skip the
-checksum database for this path. Verified result:
+The binary is written to `$(go env GOPATH)/bin` (`%USERPROFILE%\go\bin` on
+Windows). Add that directory to your `PATH`, then run:
+
+```bash
+uxdguard version
+```
+
+Expected output:
 
 ```text
 UXDGuard
@@ -100,60 +153,115 @@ Build date: unknown
 ```
 
 `Commit` and `Build date` are `unknown` for module installs because Go module
-archives do not carry VCS metadata. Full details are in
-[docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
+archives do not carry VCS metadata. Release binaries do include both.
 
-Verify any installation:
+### Option 3: Build from source
 
 ```bash
-uxdguard version
-uxdguard rules
+git clone https://github.com/arjunuxd/uxdguard.git
+cd uxdguard
+git checkout v1.1.0
+go build ./cmd/uxdguard
 ```
 
-Ensure your Go bin directory (`$(go env GOPATH)/bin`) is on your `PATH` when
-installing Go binaries.
+On Windows the output is `uxdguard.exe`. A source build reports `dev` with the
+real Git commit and build date.
 
-## Version Reporting
+## Use UXDGuard
 
-`uxdguard version` reports the version, commit, and build date. The value comes from:
-
-1. Linker flags used by the official release build;
-2. Go module metadata when installed with `go install ...@version`;
-3. The truthful fallback `dev` for an untagged local build.
-
-Release binaries therefore report `1.1.0`, while a clean `go install ...@version` reports the module version selected by Go. Because the default `v1.1.0` proxy entry is stale, use the `GOPRIVATE` install command shown under [Go Module Installation](#go-module-installation), the published binaries, or a source build.
-
-## Quick Start
+### Step 1: Open a terminal in your project
 
 ```bash
-# Navigate to your project directory
 cd /path/to/your-project
-
-# Run a full scan
-uxdguard check
-
-# Scan only staged changes
-uxdguard check --staged
-
-# Generate JSON output
-uxdguard check --json
-
-# Filter and paginate results
-uxdguard check --severity high --page 1 --limit 20
-
-# Initialize and validate configuration
-uxdguard init
-uxdguard config validate
-
-# Manage Git hooks
-uxdguard hook status
-uxdguard hook install
-uxdguard hook uninstall
 ```
 
-## Usage
+### Step 2: Run a scan
 
-### Command Reference
+```bash
+uxdguard check
+```
+
+UXDGuard scans the current directory recursively. No configuration is required.
+
+### Step 3: Read the report
+
+Example output:
+
+```text
+UXDGuard
+Security Scanner · 1.1.0
+
+Project: /path/to/your-project
+
+Findings: (showing 1-2 of 2 total)
+Page 1 of 1
+
+HIGH     UXD-SEC-200  Use of dynamic code evaluation detected
+         app.js:1
+         eval() or Function() can lead to code injection if used with untrusted input.
+         Remediation: Avoid dynamic code evaluation; use safe parsers or explicit logic.
+
+HIGH     UXD-SEC-100  Potential AWS access key detected
+         config.js:1
+         A string matching AWS access key pattern was found.
+         Remediation: Remove hardcoded credentials and use environment variables or a secure secret manager.
+
+Summary: 0 critical, 2 high, 0 medium, 0 low | 2 findings, 0 skipped, 0 errors
+Status: Findings detected
+```
+
+Each finding shows its severity, rule ID, `file:line`, description, and a
+remediation hint. Secret values are redacted.
+
+### Step 4: Fix the findings and rerun
+
+```bash
+uxdguard check
+```
+
+Repeat until the scan is clean. Exit codes make this usable in CI:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | No findings (or all findings below the policy threshold) |
+| `1` | Findings at or above the policy threshold |
+| `2` | Invalid usage or configuration |
+| `3` | Operational failure (for example, an unreadable project root) |
+
+### Step 5: Check changes before you commit
+
+Scan only what is staged in Git:
+
+```bash
+git add .
+uxdguard check --staged
+```
+
+Install a pre-commit hook so this happens automatically:
+
+```bash
+uxdguard hook install
+uxdguard hook status
+```
+
+Remove the hook later with `uxdguard hook uninstall`.
+
+### Other useful commands
+
+```bash
+uxdguard check --json                       # full machine-readable report
+uxdguard check --staged                     # staged Git changes only
+uxdguard check --severity high              # only high severity findings
+uxdguard check --rule UXD-SEC-101           # one rule
+uxdguard check --page 2 --limit 50          # paginate terminal output
+uxdguard check --project-root /path/to/repo # scan another directory
+uxdguard init                               # create .uxdguard.yaml
+uxdguard config validate                    # validate configuration
+uxdguard rules                              # list scanners
+uxdguard version                            # version, commit, build date
+```
+
+### Command reference
 
 | Command | Description |
 |---|---|
@@ -167,19 +275,9 @@ uxdguard hook uninstall
 | `uxdguard version` | Display version information |
 | `uxdguard uninstall` | Uninstall UXDGuard |
 
-### Pagination and Filtering
-
-```bash
-uxdguard check                       # 20 findings per page by default
-uxdguard check --limit 50
-uxdguard check --page 2
-uxdguard check --severity critical
-uxdguard check --rule UXD-SEC-101
-```
-
 JSON output is always complete and is not affected by pagination options.
 
-### Configuration
+## Configuration
 
 Generate a starter configuration:
 
@@ -189,9 +287,33 @@ uxdguard init
 
 For the full schema, defaults, and rule controls, see [Configuration](docs/configuration.md).
 
-### Default Exclusions
+## Default Exclusions
 
 UXDGuard excludes dependency, build, cache, and editor directories by default, including `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.cache`, `coverage`, `target`, `out`, `.venv`, `venv`, `__pycache__`, `.terraform`, `.idea`, and `.vscode`. Dependency manifests and lockfiles are not excluded.
+
+## Version Reporting
+
+`uxdguard version` reports the version, commit, and build date. Values come from:
+
+1. Linker flags used by the official release build;
+2. Go module metadata when installed with `go install ...@version`;
+3. The truthful fallback `dev` for an untagged local build.
+
+## Known Installation Issue
+
+A pre-release artifact was published under the `v1.1.0` version on 2026-10-29
+and later replaced. `proxy.golang.org` and `sum.golang.org` keep that earlier
+artifact permanently, so plain `go install ...@v1.1.0` builds old code, and
+`GOPROXY=direct` alone fails checksum verification.
+
+Use one of these instead:
+
+- the release binaries (Option 1),
+- the `GOPRIVATE` install command (Option 2),
+- a source build from tag `v1.1.0` (Option 3).
+
+This affects only the Go module path for `v1.1.0`. Full details are in
+[docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
 
 ## Privacy and Security
 
@@ -241,7 +363,7 @@ go mod verify
 uxdguard uninstall
 ```
 
-If self-removal is blocked, remove the `uxdguard` executable from your Go bin directory manually.
+If self-removal is blocked, delete the `uxdguard` executable you installed.
 
 ## License
 
