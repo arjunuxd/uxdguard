@@ -122,6 +122,15 @@ This release needs one extra variable because Go's public proxy still holds an
 older artifact for the `v1.1.0` version (see [Known Installation Issue](#known-installation-issue)).
 `GOPRIVATE` makes Go fetch the tag directly from GitHub.
 
+If you already ran the plain `go install` once, Go saved the stale copy in its
+module cache; clear it first:
+
+```bash
+go clean -modcache
+```
+
+This removes all downloaded Go modules; Go re-downloads them as needed.
+
 Linux and macOS:
 
 ```bash
@@ -141,6 +150,15 @@ Windows). Add that directory to your `PATH`, then run:
 ```bash
 uxdguard version
 ```
+
+Check which executable your shell finds:
+
+```powershell
+where.exe uxdguard
+```
+
+If it points somewhere other than your Go bin directory, remove the old copy
+or put the Go bin directory earlier on `PATH`.
 
 Expected output:
 

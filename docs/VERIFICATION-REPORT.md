@@ -25,7 +25,7 @@ This report covers the code, tests, documentation, CLI behaviour, and release pa
 | Cross-build macOS arm64 | Pass |
 | Linker version injection | Pass |
 | Untagged local build | Pass, reports `dev` with VCS commit and date |
-| Go module version detection | Pass, verified with a file-based module proxy and with a direct `GOPRIVATE` install of `...@v1.1.0`, both reporting `1.1.0` |
+| Go module version detection | Pass, verified with a file-based module proxy and with a clean-cache `GOPRIVATE` install of `...@v1.1.0`, both reporting `1.1.0` |
 | JSON output | Pass, valid JSON with non-null arrays |
 | Terminal pagination | Pass, including zero filtered results |
 | Rule disable / policy | Pass |
@@ -142,7 +142,7 @@ Each binary has a matching `.sha256` file. The workflow verifies module integrit
 - Dependency CVE and full SCA coverage are not included.
 - External integrations depend on separately installed tools and their behaviour.
 - Four Windows symlink tests are skipped locally when symlink creation is unavailable; CI exercises them on Linux and macOS.
-- `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` and `@latest` use a stale `proxy.golang.org` entry: a pre-release artifact was cached for that version on 2026-10-29, before the final `v1.1.0` tag was created. That artifact reports `Version: 0.1.0-dev`, and forcing `GOPROXY=direct` alone fails with a checksum mismatch because the checksum database record is permanent. Set `GOPRIVATE='github.com/arjunuxd/*'` (or `GONOSUMDB`) to fetch the tag directly from GitHub and skip the stale checksum record; this was verified to install the current code and report `Version: 1.1.0`. The published release binaries and source builds from the `v1.1.0` tag are unaffected.
+- `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` and `@latest` use a stale `proxy.golang.org` entry: a pre-release artifact was cached for that version on 2026-10-29, before the final `v1.1.0` tag was created. That artifact reports `Version: 0.1.0-dev`, and forcing `GOPROXY=direct` alone fails with a checksum mismatch because the checksum database record is permanent. Set `GOPRIVATE='github.com/arjunuxd/*'` (or `GONOSUMDB`) to fetch the tag directly from GitHub and skip the stale checksum record; if `v1.1.0` was already downloaded once, run `go clean -modcache` first, because `GOPRIVATE` does not invalidate an existing module cache entry. This was verified to install the current code and report `Version: 1.1.0`. The published release binaries and source builds from the `v1.1.0` tag are unaffected.
 
 ## Conclusion
 
