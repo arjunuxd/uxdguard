@@ -48,22 +48,7 @@ Release binaries are published for Windows amd64, Linux amd64, and macOS arm64. 
 
 ## Installation
 
-### Install with Go (Recommended)
-
-```bash
-go install github.com/arjunuxd/uxdguard/cmd/uxdguard@latest
-```
-
-Verify the installation:
-
-```bash
-uxdguard version
-uxdguard rules
-```
-
-Ensure your Go bin directory (`$(go env GOPATH)/bin`) is on your `PATH`.
-
-### Pre-built Binaries
+### Pre-built Binaries (Recommended)
 
 Download official binaries and SHA-256 checksums from the [latest release](https://github.com/arjunuxd/uxdguard/releases/latest).
 
@@ -76,10 +61,32 @@ sha256sum -c uxdguard-linux-amd64.sha256
 ```bash
 git clone https://github.com/arjunuxd/uxdguard.git
 cd uxdguard
+git checkout v1.1.0
 go build ./cmd/uxdguard
 ```
 
 On Windows the output is `uxdguard.exe`.
+
+### Go Module Installation
+
+`go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` is **not usable
+for this release**. A pre-release artifact was previously published under the
+`v1.1.0` version on 2026-10-29 and then replaced. The public module proxy and
+checksum database keep that earlier artifact permanently, so `v1.1.0` and
+`@latest` resolve to the old code, while `GOPROXY=direct` fails checksum
+verification. Use the pre-built binaries or build from source until a later
+module version is published. Full details are in
+[docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
+
+Verify any installation:
+
+```bash
+uxdguard version
+uxdguard rules
+```
+
+Ensure your Go bin directory (`$(go env GOPATH)/bin`) is on your `PATH` when
+installing Go binaries.
 
 ## Version Reporting
 
@@ -89,7 +96,7 @@ On Windows the output is `uxdguard.exe`.
 2. Go module metadata when installed with `go install ...@version`;
 3. The truthful fallback `dev` for an untagged local build.
 
-Release binaries therefore report `1.1.0`, while `go install ...@latest` reports the module version selected by Go.
+Release binaries therefore report `1.1.0`, while a clean `go install ...@version` reports the module version selected by Go. The current `v1.1.0` module version is affected by the proxy issue described under [Go Module Installation](#go-module-installation), so the binaries or a source build are the supported installation paths for this release.
 
 ## Quick Start
 

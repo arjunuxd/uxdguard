@@ -25,7 +25,7 @@ This report covers the code, tests, documentation, CLI behaviour, and release pa
 | Cross-build macOS arm64 | Pass |
 | Linker version injection | Pass |
 | Untagged local build | Pass, reports `dev` with VCS commit and date |
-| Go module version detection | Pass, `go install ...@v1.1.0` via a file-based module proxy reports `1.1.0` |
+| Go module version detection | Pass at code level, a file-based module proxy install of `...@v1.1.0` reports `1.1.0`; the public `proxy.golang.org` version is unusable, see Known Limitations |
 | JSON output | Pass, valid JSON with non-null arrays |
 | Terminal pagination | Pass, including zero filtered results |
 | Rule disable / policy | Pass |
@@ -45,6 +45,7 @@ This report covers the code, tests, documentation, CLI behaviour, and release pa
 - A build without linker flags reports `dev`, the real VCS revision, and the VCS commit timestamp.
 - Go module metadata is used only when the main module path matches and the version is not `(devel)`.
 - A file-based Go module proxy install of `github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` reports `Version: 1.1.0`; commit and build date remain `unknown` when the module proxy does not carry VCS metadata.
+- The public module version `v1.1.0` is not usable because an earlier artifact was cached for that version on 2026-10-29; see Known Limitations.
 - Release output format:
 
 ```text
@@ -141,7 +142,8 @@ Each binary has a matching `.sha256` file. The workflow verifies module integrit
 - Dependency CVE and full SCA coverage are not included.
 - External integrations depend on separately installed tools and their behaviour.
 - Four Windows symlink tests are skipped locally when symlink creation is unavailable; CI exercises them on Linux and macOS.
+- `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` and `@latest` currently resolve to a pre-release artifact that was cached by `proxy.golang.org` and `sum.golang.org` on 2026-10-29, before the final `v1.1.0` tag was created. That artifact reports `Version: 0.1.0-dev`, and forcing `GOPROXY=direct` fails with a checksum mismatch because the checksum database record is permanent. `@main` also resolved to an older cached pseudo-version during verification. This cannot be corrected for the `v1.1.0` version without publishing a new module version, which is outside this release's scope. The published release binaries and source builds from the `v1.1.0` tag are unaffected and are the supported installation paths.
 
 ## Conclusion
 
-The v1.1.0 codebase, CLI, JSON output, staged scanning, cancellation, configuration handling, and cross-platform builds pass the validation above. The release is ready for stable production publication as `UXDGuard v1.1.0`.
+The v1.1.0 codebase, CLI, JSON output, staged scanning, cancellation, configuration handling, and cross-platform builds pass the validation above, and the GitHub release is published as the latest stable release. The Go module distribution path for the `v1.1.0` version is degraded by the earlier cached artifact described above; use the published binaries or a source build from the tag.
