@@ -55,16 +55,37 @@ func isPlaceholder(v string) bool {
 	if placeholders[lv] {
 		return true
 	}
-	// common placeholder patterns but be careful not to block real secrets
-	if lv == "your_secret_key" || lv == "your_api_key_here" || lv == "insert_key_here" {
-		return true
-	}
+	// Common placeholder markers. These are intentionally conservative and
+	// only cover values that are clearly not production credentials.
 	if strings.HasPrefix(lv, "xxx") || strings.HasPrefix(lv, "yyy") {
 		return true
 	}
-	// only block if it's clearly a placeholder, not if it contains these words
-	if lv == "example" || lv == "test" || lv == "changeme" {
+	if strings.HasPrefix(lv, "your_") || strings.HasPrefix(lv, "your-") {
 		return true
+	}
+	for _, marker := range []string{
+		"your_api_key", "your_secret", "your-secret", "your_key_here",
+		"insert_key_here", "replace_me", "placeholder", "not_a_real",
+		"notreal", "changeme", "redacted",
+	} {
+		if strings.Contains(lv, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// looksLikeExample reports whether a line appears to contain a documentation
+// or placeholder example rather than a live secret.
+func looksLikeExample(line string) bool {
+	l := strings.ToLower(line)
+	for _, marker := range []string{
+		"example", "placeholder", "dummy", "sample", "your_", "your-",
+		"changeme", "xxxx", "yyyy", "redacted", "not-a-real", "not_a_real",
+	} {
+		if strings.Contains(l, marker) {
+			return true
+		}
 	}
 	return false
 }
@@ -84,28 +105,6 @@ func stripQuotes(s string) string {
 		s = strings.TrimSpace(s[:idx])
 	}
 	return strings.TrimSpace(s)
-}
-
-func isRuleEnabled(id string, cfg *config.Config) bool {
-	if cfg == nil {
-		return true
-	}
-	// check disable first (supports rule IDs and scanner IDs)
-	for _, d := range cfg.Rules.Disable {
-		if d == id {
-			return false
-		}
-		// also check if disabling scanner
-	}
-	if len(cfg.Rules.Enable) > 0 {
-		for _, e := range cfg.Rules.Enable {
-			if e == id {
-				return true
-			}
-		}
-		return false
-	}
-	return true
 }
 
 func getSeverity(id string, def string, cfg *config.Config) string {
@@ -128,6 +127,10 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 		return findings, errs
 	}
 	for _, f := range ctx.Files {
+		if ctx.Cancelled() {
+			errs = append(errs, Error{ScannerID: s.ID(), Message: "cancelled"})
+			return findings, errs
+		}
 		// skip very large files already handled by discovery
 		file, err := os.Open(f)
 		if err != nil {
@@ -143,8 +146,7 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 		for scanner.Scan() {
 			lineNum++
 			line := scanner.Text()
-			trim := strings.TrimSpace(line)
-			if trim == "" || strings.HasPrefix(trim, "//") || strings.HasPrefix(trim, "#") || strings.HasPrefix(trim, "*") {
+			if strings.TrimSpace(line) == "" || isCommentLine(line) {
 				continue
 			}
 			rel, _ := filepath.Rel(ctx.Root, f)
@@ -230,7 +232,7 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 				}
 			}
 			// JWT
-			if reJWT.MatchString(line) {
+			if reJWT.MatchString(line) && !looksLikeExample(line) {
 				findings = append(findings, Finding{
 					RuleID:      "UXD-SEC-106",
 					ScannerID:   s.ID(),
@@ -247,38 +249,38 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 			// Provider-specific patterns
 			if reGoogleKey.MatchString(line) {
 				findings = append(findings, Finding{
-					RuleID: "UXD-SEC-100", ScannerID: s.ID(), Title: "Potential Google API key detected",
-					Message: "A string matching Google API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-100", string(SeverityHigh), ctx.Cfg)),
+					RuleID: "UXD-SEC-107", ScannerID: s.ID(), Title: "Potential Google API key detected",
+					Message: "A string matching Google API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-107", string(SeverityHigh), ctx.Cfg)),
 					Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and use environment variables or a secure secret manager.",
 				})
 				continue
 			}
 			if reResendKey.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Resend API key detected", Message: "A string matching Resend API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-108", ScannerID: s.ID(), Title: "Potential Resend API key detected", Message: "A string matching Resend API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-108", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
 				continue
 			}
 			if reRazorpayKey.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Razorpay key detected", Message: "A string matching Razorpay key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-109", ScannerID: s.ID(), Title: "Potential Razorpay key detected", Message: "A string matching Razorpay key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-109", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
 				continue
 			}
 			if rePosthogKey.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential PostHog key detected", Message: "A string matching PostHog key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-110", ScannerID: s.ID(), Title: "Potential PostHog key detected", Message: "A string matching PostHog key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-110", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
 				continue
 			}
 			if reStripeKey.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Stripe key detected", Message: "A string matching Stripe key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityCritical), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-111", ScannerID: s.ID(), Title: "Potential Stripe key detected", Message: "A string matching Stripe key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-111", string(SeverityCritical), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
 				continue
 			}
 			if reSendGridKey.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential SendGrid API key detected", Message: "A string matching SendGrid API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-112", ScannerID: s.ID(), Title: "Potential SendGrid API key detected", Message: "A string matching SendGrid API key pattern was found.", Severity: Severity(getSeverity("UXD-SEC-112", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and rotate if exposed."})
 				continue
 			}
 			if reDiscordHook.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Discord webhook URL detected", Message: "A Discord webhook URL was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove webhook URLs from source control and use secure storage."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-113", ScannerID: s.ID(), Title: "Potential Discord webhook URL detected", Message: "A Discord webhook URL was found.", Severity: Severity(getSeverity("UXD-SEC-113", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove webhook URLs from source control and use secure storage."})
 				continue
 			}
 			if reCloudinary.MatchString(line) {
-				findings = append(findings, Finding{RuleID: "UXD-SEC-101", ScannerID: s.ID(), Title: "Potential Cloudinary credentials detected", Message: "Cloudinary URL with credentials was found.", Severity: Severity(getSeverity("UXD-SEC-101", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and use environment variables."})
+				findings = append(findings, Finding{RuleID: "UXD-SEC-114", ScannerID: s.ID(), Title: "Potential Cloudinary credentials detected", Message: "Cloudinary URL with credentials was found.", Severity: Severity(getSeverity("UXD-SEC-114", string(SeverityHigh), ctx.Cfg)), Confidence: ConfidenceHigh, File: rel, Line: lineNum, Remediation: "Remove hardcoded credentials and use environment variables."})
 				continue
 			}
 			// Assignment pattern (quoted and unquoted)
@@ -291,8 +293,13 @@ func (s *SecretScanner) Run(ctx *Context) ([]Finding, []Error) {
 				if len(val) < 8 {
 					continue
 				}
-				// skip common non-secret keys
+				// skip common non-secret keys and UI copy fields
 				if key == "NODE_ENV" || key == "PORT" || key == "HOST" {
+					continue
+				}
+				if strings.Contains(key, "LABEL") || strings.Contains(key, "HINT") ||
+					strings.Contains(key, "MESSAGE") || strings.Contains(key, "TITLE") ||
+					strings.Contains(key, "DESCRIPTION") {
 					continue
 				}
 				// check if key suggests secret

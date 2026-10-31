@@ -51,6 +51,19 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 		return findings, errs
 	}
 	for _, f := range ctx.Files {
+		if ctx.Cancelled() {
+			errs = append(errs, Error{ScannerID: s.ID(), Message: "cancelled"})
+			return findings, errs
+		}
+		rel, _ := filepath.Rel(ctx.Root, f)
+		if rel == "" {
+			rel = f
+		}
+		// Documentation examples are not executable source code. Secrets are
+		// still handled by the dedicated secret scanner.
+		if isDocFile(rel) {
+			continue
+		}
 		file, err := os.Open(f)
 		if err != nil {
 			errs = append(errs, Error{ScannerID: s.ID(), Message: "failed to open file"})
@@ -61,16 +74,11 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 		scanner.Buffer(make([]byte, maxTokenSize), maxTokenSize)
 		scanner.Split(bufio.ScanLines)
 		lineNum := 0
-		rel, _ := filepath.Rel(ctx.Root, f)
-		if rel == "" {
-			rel = f
-		}
 		ext := strings.ToLower(filepath.Ext(f))
 		for scanner.Scan() {
 			lineNum++
 			line := scanner.Text()
-			trim := strings.TrimSpace(line)
-			if trim == "" || strings.HasPrefix(trim, "//") || strings.HasPrefix(trim, "#") {
+			if strings.TrimSpace(line) == "" || isCommentLine(line) {
 				continue
 			}
 			// eval / Function constructor
@@ -89,9 +97,9 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 				continue
 			}
 			// command exec (basic)
-			if reExec.MatchString(line) {
+			if reExec.MatchString(line) && !isRegExpExec(line) {
 				l := strings.ToLower(line)
-				if !strings.Contains(l, "console.log") && !strings.Contains(l, "//") {
+				if !strings.Contains(l, "console.log") {
 					findings = append(findings, Finding{
 						RuleID:      "UXD-SEC-207",
 						ScannerID:   s.ID(),
@@ -170,7 +178,7 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 				continue
 			}
 			// Path traversal
-			if rePathTraversal.MatchString(line) && (ext == ".js" || ext == ".ts" || ext == ".py" || ext == ".php" || ext == ".java" || ext == ".go") {
+			if rePathTraversal.MatchString(line) && !isImportLikeLine(line) && (ext == ".js" || ext == ".ts" || ext == ".py" || ext == ".php" || ext == ".java" || ext == ".go") {
 				l := strings.ToLower(line)
 				if strings.Contains(l, "read") || strings.Contains(l, "open") || strings.Contains(l, "path") || strings.Contains(l, "file") {
 					findings = append(findings, Finding{
@@ -201,24 +209,6 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 						File:        rel,
 						Line:        lineNum,
 						Remediation: "Use strong algorithms like SHA-256, bcrypt, argon2, or PBKDF2.",
-					})
-					continue
-				}
-			}
-			// Command exec
-			if reExec.MatchString(line) {
-				l := strings.ToLower(line)
-				if !strings.Contains(l, "console.log") {
-					findings = append(findings, Finding{
-						RuleID:      "UXD-SEC-207",
-						ScannerID:   s.ID(),
-						Title:       "Potential command execution detected",
-						Message:     "Executing shell commands can lead to command injection if input is untrusted.",
-						Severity:    Severity(getSeverity("UXD-SEC-207", string(SeverityHigh), ctx.Cfg)),
-						Confidence:  ConfidenceMedium,
-						File:        rel,
-						Line:        lineNum,
-						Remediation: "Use parameterized APIs, avoid shells, and strictly validate/allowlist inputs.",
 					})
 					continue
 				}

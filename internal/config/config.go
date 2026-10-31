@@ -67,17 +67,18 @@ func Load(projectRoot, configPath string) (*Config, string, error) {
 		if err != nil {
 			return nil, "", err
 		}
-		// Prevent path outside project root
-		if rel, err := filepath.Rel(absRoot, path); err == nil {
-			if strings.HasPrefix(filepath.ToSlash(rel), "../") || rel == ".." {
-				return nil, path, errors.New("config file must be within project root")
-			}
-		} else {
-			// if can't determine relation, proceed but be cautious
+		// Prevent a config file outside the project root, including paths on a
+		// different volume where a relative path cannot be computed.
+		rel, err := filepath.Rel(absRoot, path)
+		if err != nil || rel == ".." || strings.HasPrefix(filepath.ToSlash(rel), "../") {
+			return nil, path, errors.New("config file must be within project root")
 		}
 	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		// missing is fine, use defaults
+		if configPath != "" {
+			return nil, path, fmt.Errorf("config file not found: %s", path)
+		}
+		// An absent project config is fine; use defaults.
 		cfg := Defaults()
 		return cfg, path, nil
 	} else if err != nil {
@@ -99,22 +100,37 @@ func Load(projectRoot, configPath string) (*Config, string, error) {
 	if err := yaml.Unmarshal(b, &cfg); err != nil {
 		return nil, path, fmt.Errorf("malformed YAML in %s: %w", path, err)
 	}
-	// Merge defaults for missing parts
+	// Merge defaults only for keys that are absent. Explicit zero or empty
+	// values must reach validation instead of being silently replaced.
 	def := Defaults()
-	if cfg.Version == 0 {
+	if !hasKey(raw, "version") {
 		cfg.Version = def.Version
 	}
-	if cfg.Scan.MaxFileSizeBytes == 0 {
+	if !hasNestedKey(raw, "scan", "max_file_size_bytes") {
 		cfg.Scan.MaxFileSizeBytes = def.Scan.MaxFileSizeBytes
 	}
-	if len(cfg.Scan.Exclusions) == 0 {
+	if !hasNestedKey(raw, "scan", "exclusions") {
 		cfg.Scan.Exclusions = append([]string(nil), def.Scan.Exclusions...)
 	}
-	if len(cfg.Policy.FailOn) == 0 {
+	if !hasNestedKey(raw, "policy", "fail_on") {
 		cfg.Policy.FailOn = append([]string(nil), def.Policy.FailOn...)
 	}
 	if err := Validate(&cfg); err != nil {
 		return nil, path, err
 	}
 	return &cfg, path, nil
+}
+
+func hasKey(m map[string]interface{}, key string) bool {
+	_, ok := m[key]
+	return ok
+}
+
+func hasNestedKey(m map[string]interface{}, parent, key string) bool {
+	section, ok := m[parent].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	_, ok = section[key]
+	return ok
 }

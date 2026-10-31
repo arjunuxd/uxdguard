@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/arjunuxd/uxdguard/internal/config"
 	"github.com/arjunuxd/uxdguard/internal/scan"
@@ -62,7 +63,7 @@ func (g *GitleaksAdapter) Run(ctx *scan.Context) ([]scan.Finding, []scan.Error) 
 		}
 		return findings, errs
 	}
-	runner := NewRunner(60)
+	runner := NewRunner(timeoutFromConfig(ec.Timeout, 60*time.Second))
 	// Run gitleaks detect in repo
 	args := []string{"detect", "--source", ctx.Root, "--report-format", "json", "--report-path", "-", "--no-git", "--no-banner"}
 	stdout, stderr, err := runner.Run(ctx.Ctx, bin, args)

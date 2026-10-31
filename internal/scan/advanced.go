@@ -23,22 +23,27 @@ func (a *AdvancedScanner) Description() string {
 var (
 	reExecCmd       = regexp.MustCompile(`(?i)(exec\.Command|os\.Exec|child_process\.exec|subprocess\.call|subprocess\.run|system\(|popen\(|exec\()`)
 	reShellTrue     = regexp.MustCompile(`(?i)(shell\s*[:=]\s*true|Shell\s*=\s*true|{shell)`)
+	reShellAlways   = regexp.MustCompile(`(?i)(child_process\.exec|\bsystem\s*\(|\bpopen\s*\()`)
+	reShellCommand  = regexp.MustCompile(`(?i)exec\.Command\s*\([^)]*["'](?:sh|bash|zsh|cmd|powershell)["']`)
 	rePathJoin      = regexp.MustCompile(`(?i)(filepath\.Join|path\.join).*\+|concat.*path|\.\./`)
 	reInnerHTML     = regexp.MustCompile(`(?i)(innerHTML|dangerouslySetInnerHTML|v-html|outerHTML)`)
 	reSQLConcatAdv  = regexp.MustCompile(`(?i)(SELECT|INSERT|UPDATE|DELETE).*(\+|concat|%s|\$\{)`)
 	reOpenRedirect  = regexp.MustCompile(`(?i)(redirect|Location).*http|res\.redirect\(.*req\.|header.*location`)
 	reDebugEndpoint = regexp.MustCompile(`(?i)(/debug|/admin|/swagger|/api-docs|/actuator)`)
-	reJWTVerify     = regexp.MustCompile(`(?i)(jwt\.verify\s*\(|verify.*false|algorithms.*\[.*none.*\]|"alg"\s*:\s*"none")`)
-	reJWTSecret     = regexp.MustCompile(`(?i)(jwt.*secret|JWT_SECRET)\s*[:=]\s*["'][^"']{4,}["']`)
-	reCookieInsec   = regexp.MustCompile(`(?i)(Set-Cookie|cookie).*HttpOnly\s*=\s*false|Secure\s*=\s*false`)
-	reWeakHash      = regexp.MustCompile(`(?i)(md5\.|sha1\.|MD5|SHA1)\(|\bmd5\b|\bsha1\b`)
-	reWeakRand      = regexp.MustCompile(`(?i)(math/rand|rand\.Int|random\.random|Math\.random\(\)).*(token|session|password|secret)`)
-	reHardcodeKey   = regexp.MustCompile(`(?i)(encryption.*key|aes.*key|secret.*key)\s*[:=]\s*["'][A-Za-z0-9+/=]{16,}["']`)
-	reLogSecret     = regexp.MustCompile(`(?i)(log.*password|print.*secret|console\.log.*token|logger.*key)`)
-	reSSRF          = regexp.MustCompile(`(?i)(http\.Get|axios\.get|requests\.get|fetch\().*req\.|url.*=.*req\.`)
-	reCSRFMissing   = regexp.MustCompile(`(?i)(app\.post|router\.post).*/(delete|update|create|transfer)`)
-	reFileUpload    = regexp.MustCompile(`(?i)(multipart|form-data|uploaded.*file|MoveUploadedFile)`)
-	reDeserPickle   = regexp.MustCompile(`(?i)pickle\.loads|yaml\.load\(|unserialize\(|ObjectInputStream`)
+	// Only flag JWT verification that is actually insecure. A plain
+	// jwt.verify(...) call is the secure default and must not be reported.
+	reJWTVerify   = regexp.MustCompile(`(?i)(verify\w*\s*[:=]\s*false|algorithms?\s*[:=]\s*\[?\s*['"]?none|"alg"\s*:\s*"none"|ignoreExpiration\s*[:=]\s*true)`)
+	reJWTSecret   = regexp.MustCompile(`(?i)(?:jwt[_\s-]*secret|JWT_SECRET)\s*[:=]\s*["']([^"']{4,})["']`)
+	reCookieInsec = regexp.MustCompile(`(?i)(Set-Cookie|cookie).*HttpOnly\s*=\s*false|Secure\s*=\s*false`)
+	reWeakHash    = regexp.MustCompile(`(?i)(md5\.|sha1\.|MD5|SHA1)\(|\bmd5\b|\bsha1\b`)
+	reWeakRand    = regexp.MustCompile(`(?i)(math/rand|rand\.Int|random\.random|Math\.random\(\)).*(token|session|password|secret)`)
+	reHardcodeKey = regexp.MustCompile(`(?i)(?:encryption[_\s-]*key|aes[_\s-]*key|secret[_\s-]*key)\s*[:=]\s*["']([A-Za-z0-9+/=]{16,})["']`)
+	reLogSecret   = regexp.MustCompile(`(?i)(log.*password|print.*secret|console\.log.*token|logger.*key)`)
+	reSSRF        = regexp.MustCompile(`(?i)(http\.Get|axios\.get|requests\.get|fetch\().*req\.|url.*=.*req\.`)
+	reCSRFMissing = regexp.MustCompile(`(?i)(app\.post|router\.post).*/(delete|update|create|transfer)`)
+	reFileUpload  = regexp.MustCompile(`(?i)(multipart|form-data|uploaded.*file|MoveUploadedFile)`)
+	reDeserPickle = regexp.MustCompile(`(?i)pickle\.loads|yaml\.load\(|unserialize\(|ObjectInputStream`)
+	reSQLKeyword  = regexp.MustCompile(`(?i)(select|insert|update|delete|drop|create)\s+`)
 )
 
 func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
@@ -52,6 +57,19 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 	}
 
 	for _, f := range ctx.Files {
+		if ctx.Cancelled() {
+			errs = append(errs, Error{ScannerID: a.ID(), Message: "cancelled"})
+			return findings, errs
+		}
+		rel, _ := filepath.Rel(ctx.Root, f)
+		if rel == "" {
+			rel = f
+		}
+		relSlash := filepath.ToSlash(rel)
+		// Documentation examples are not executable code.
+		if isDocFile(relSlash) {
+			continue
+		}
 		file, err := os.Open(f)
 		if err != nil {
 			errs = append(errs, Error{ScannerID: a.ID(), Message: "failed to open file"})
@@ -65,16 +83,15 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 		for scanner.Scan() {
 			lineNum++
 			line := scanner.Text()
-			rel, _ := filepath.Rel(ctx.Root, f)
-			if rel == "" {
-				rel = f
+			if strings.TrimSpace(line) == "" || isCommentLine(line) {
+				continue
 			}
-			relSlash := filepath.ToSlash(rel)
 
-			// Command injection
-			if reExecCmd.MatchString(line) {
+			// Command injection. Only report actual shell execution; generic
+			// process spawning is covered by UXD-SEC-207 in sourcechecks.
+			if reExecCmd.MatchString(line) && (reShellTrue.MatchString(line) || reShellAlways.MatchString(line) || reShellCommand.MatchString(line)) {
 				// Skip in test files and documentation patterns
-				if strings.Contains(relSlash, "tests/") || strings.HasSuffix(relSlash, "_test.go") || strings.Contains(relSlash, "docs/") || strings.HasSuffix(relSlash, ".md") {
+				if strings.Contains(relSlash, "tests/") || strings.HasSuffix(relSlash, "_test.go") || strings.Contains(relSlash, "docs/") {
 					goto skipCmd
 				}
 				findings = append(findings, Finding{
@@ -86,8 +103,8 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 			}
 		skipCmd:
 			// Path traversal
-			if rePathJoin.MatchString(line) && strings.Contains(line, "..") {
-				if strings.Contains(relSlash, "docs/") || strings.HasSuffix(relSlash, ".md") {
+			if rePathJoin.MatchString(line) && strings.Contains(line, "..") && !isImportLikeLine(line) {
+				if strings.Contains(relSlash, "docs/") {
 					goto skipPath
 				}
 				findings = append(findings, Finding{
@@ -131,7 +148,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 					goto skipSQLAdv
 				}
 				if !strings.Contains(l, "query") && !strings.Contains(l, "execute") && !strings.Contains(l, "exec") && !strings.Contains(l, "$where") && !strings.Contains(l, "db.") {
-					if !regexp.MustCompile(`(?i)(select|insert|update|delete|drop|create)\s+`).MatchString(line) {
+					if !reSQLKeyword.MatchString(line) {
 						goto skipSQLAdv
 					}
 				}
@@ -162,9 +179,6 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 			// Debug endpoints
 			if reDebugEndpoint.MatchString(line) {
 				l := strings.ToLower(line)
-				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
-					goto skipAdmin2
-				}
 				if strings.Contains(l, "\"/admin") && !strings.Contains(l, "router") && !strings.Contains(l, "app.") && !strings.Contains(l, "route") {
 					goto skipAdmin2
 				}
@@ -179,13 +193,10 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 			// JWT issues
 			if reJWTVerify.MatchString(line) {
 				l := strings.ToLower(line)
-				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
-					goto skipJWT
-				}
 				if strings.Contains(l, "verify") && strings.Contains(l, "throws") {
 					goto skipJWT
 				}
-				if strings.Contains(relSlash, "docs/") || strings.Contains(relSlash, "tests/fixtures/") {
+				if strings.Contains(relSlash, "tests/fixtures/") {
 					goto skipJWT
 				}
 				findings = append(findings, Finding{
@@ -196,7 +207,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				continue
 			}
 		skipJWT:
-			if reJWTSecret.MatchString(line) && !isPlaceholder(line) {
+			if m := reJWTSecret.FindStringSubmatch(line); len(m) == 2 && !isPlaceholder(m[1]) {
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-401", ScannerID: a.ID(), Title: "Hardcoded JWT secret",
 					Message: "JWT secret is hardcoded in source code.", Severity: SeverityCritical, Confidence: ConfidenceHigh,
@@ -230,7 +241,7 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 				})
 				continue
 			}
-			if reHardcodeKey.MatchString(line) && !isPlaceholder(line) {
+			if m := reHardcodeKey.FindStringSubmatch(line); len(m) == 2 && !isPlaceholder(m[1]) {
 				findings = append(findings, Finding{
 					RuleID: "UXD-SEC-502", ScannerID: a.ID(), Title: "Hardcoded encryption key",
 					Message: "Encryption key is hardcoded in source code.", Severity: SeverityCritical, Confidence: ConfidenceHigh,
@@ -240,9 +251,6 @@ func (a *AdvancedScanner) Run(ctx *Context) ([]Finding, []Error) {
 			}
 			if reLogSecret.MatchString(line) {
 				l := strings.ToLower(line)
-				if strings.HasPrefix(strings.TrimSpace(line), "//") || strings.HasPrefix(strings.TrimSpace(line), "*") {
-					goto skipLog2
-				}
 				if !strings.Contains(l, "console.") && !strings.Contains(l, "log(") && !strings.Contains(l, "logger") {
 					goto skipLog2
 				}

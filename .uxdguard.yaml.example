@@ -14,3 +14,26 @@ policy:
   fail_on:
     - critical
     - high
+
+# Optional: enable, disable, or reclassify rules.
+# rules:
+#   enable: []
+#   disable:
+#     - UXD-SEC-203
+#   severity:
+#     UXD-SEC-203: low
+
+# Optional external scanners. Disabled by default.
+# external:
+#   gitleaks:
+#     enabled: false
+#     require: false
+#     path: ""
+#     timeout: "60s"
+#   semgrep:
+#     enabled: false
+#     require: false
+#     path: ""
+#     timeout: "120s"
+#     options:
+#       config: ""

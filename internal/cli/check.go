@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"path/filepath"
 
 	"github.com/arjunuxd/uxdguard/internal/app"
 	"github.com/arjunuxd/uxdguard/internal/config"
@@ -15,6 +17,7 @@ import (
 )
 
 func cmdCheck(args []string) int {
+	version := CurrentVersion()
 	jsonOut := false
 	projectRoot := ""
 	staged := false
@@ -68,6 +71,9 @@ func cmdCheck(args []string) int {
 		fmt.Fprintf(os.Stderr, "unknown flag: %s\n", args[i])
 		return app.ExitUsageOrConfig
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	if staged {
 		// Find repo root
 		start := projectRoot
@@ -84,7 +90,7 @@ func cmdCheck(args []string) int {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return app.ExitUsageOrConfig
 		}
-		res, err := scan.ScanStaged(context.Background(), repoRoot, cfg)
+		res, err := scan.ScanStaged(ctx, repoRoot, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return app.ExitOperationalFail
@@ -124,7 +130,7 @@ func cmdCheck(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
-	sc := scan.NewContext(root, cfg, files).WithContext(context.Background())
+	sc := scan.NewContext(root, cfg, files).WithContext(ctx)
 	res := scan.DefaultRegistry().Run(sc)
 	if jsonOut {
 		jr := &report.JSONReporter{Out: os.Stdout}
@@ -171,7 +177,16 @@ func cmdInit(args []string) int {
 			return app.ExitOperationalFail
 		}
 	}
-	target := root + string(os.PathSeparator) + ".uxdguard.yaml"
+	info, err := os.Stat(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return app.ExitOperationalFail
+	}
+	if !info.IsDir() {
+		fmt.Fprintf(os.Stderr, "error: project root is not a directory: %s\n", root)
+		return app.ExitUsageOrConfig
+	}
+	target := filepath.Join(root, ".uxdguard.yaml")
 	if _, err := os.Stat(target); err == nil {
 		fmt.Fprintf(os.Stderr, "config already exists: %s\n", target)
 		return app.ExitUsageOrConfig
@@ -192,14 +207,18 @@ policy:
   fail_on:
     - critical
     - high
+
+# Optional: tune individual rules or scanners.
+# rules:
+#   disable:
+#     - UXD-SEC-203
+#   severity:
+#     UXD-SEC-203: low
 `
 	if err := os.WriteFile(target, []byte(example), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
-	// Also write example
-	examplePath := root + string(os.PathSeparator) + ".uxdguard.yaml.example"
-	_ = os.WriteFile(examplePath, []byte(example), 0644)
 	fmt.Printf("Created %s\n", target)
 	return app.ExitOK
 }

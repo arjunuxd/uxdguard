@@ -24,8 +24,9 @@ UXDGuard is a local-first security scanner that helps developers identify common
 - **Local-first**: Core scanning runs entirely on the user's machine.
 - **No code execution**: Scanned files are never executed.
 - **Read-only by default**: Normal scans do not modify the target repository.
-- **Least privilege**: Only accesses files under the scanned project root.
+- **Least privilege**: Only accesses files under the scanned project root. Followed symlinks are confined to the root, and cycles are detected.
 - **Safe reporting**: Outputs are designed to avoid exposing sensitive values.
+- **Private staging**: Staged content is written to a private temporary directory and removed after scanning.
 
 ## User Responsibilities
 - Review findings and remediation guidance

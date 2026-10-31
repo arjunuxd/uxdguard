@@ -1,25 +1,32 @@
 ﻿# Privacy
 
 ## Local-First Design
-UXDGuard is designed to run locally on your machine. Core scanning functionality does not require network access.
+
+UXDGuard runs on your machine. Built-in scanning does not require network access and does not include telemetry, analytics, or tracking.
 
 ## Data Access
-- **Files**: Reads files under the scanned project root, respecting exclusions, file size limits, and symlink handling settings.
-- **Git**: When using `--staged` or Git hooks, reads Git index information as needed for those features.
+
+- **Files**: Reads files under the scanned project root, respecting exclusions, file size limits, and symlink settings.
+- **Git**: When using `--staged` or Git hooks, reads Git index content for the affected files.
 - **Configuration**: Reads `.uxdguard.yaml` from the project root if present.
 
 ## Network Communication
-- **Core scanning**: No mandatory network requests for normal scanning operations.
-- **External tools**: If optional external integrations are enabled, those tools may have their own network behavior. Refer to their documentation.
-- **No telemetry**: UXDGuard does not include telemetry, analytics, or tracking by default.
+
+- **Built-in scanning**: No network requests.
+- **External tools**: If optional Gitleaks or Semgrep integrations are enabled, those separate programs may have their own network behavior. For example, Semgrep with `config: auto` may retrieve rule packs. Configure a local rules path for offline use.
+- **No telemetry**: UXDGuard does not send usage data or findings anywhere.
 
 ## Data Handling
+
 - **No code execution**: Scanned files are never executed.
-- **Safe output**: Findings are reported without exposing raw secret values or unnecessary sensitive content.
-- **Local storage only**: Scan results, reports, and configuration remain on your local machine.
-- **User control**: You control what is scanned, how it is configured, and where reports are written.
+- **Redacted output**: Secret values are not printed in terminal or JSON reports.
+- **Local storage only**: Scan results, reports, and configuration remain on your machine.
+- **Staged content**: Written only to a private temporary directory (`0700` directory, `0600` files) and removed when the scan finishes.
+- **User control**: You choose what to scan, how to configure it, and where to write reports.
 
 ## Recommendations
-- Avoid committing configuration files that contain sensitive values
-- Review outputs before sharing them
-- Understand the behavior of any optional external tools you enable
+
+- Do not commit configuration files that contain sensitive values.
+- Review output before sharing it.
+- Understand the behavior of any external tool you enable.
+- Keep dependencies and the UXDGuard binary up to date.

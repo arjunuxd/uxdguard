@@ -3,30 +3,31 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.22.9%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-555555)](#supported-platforms)
-[![Status](https://img.shields.io/badge/Status-v1.1.0%20Flash-2ea44f)](https://github.com/arjunuxd/uxdguard)
+[![Release](https://img.shields.io/badge/Release-v1.1.0-2ea44f)](https://github.com/arjunuxd/uxdguard/releases/latest)
 [![Local First](https://img.shields.io/badge/Local--First-No%20Telemetry-orange)](docs/privacy.md)
 
 **Build with AI. Commit with confidence.**
 
-UXDGuard is a lightweight, local-first security scanner for developers. It identifies exposed secrets, insecure coding patterns, and common security vulnerabilities in source code and staged Git changes before they are committed.
+UXDGuard is a lightweight, local-first security scanner for developers. It detects exposed secrets, insecure coding patterns, and common security vulnerabilities in source code and staged Git changes before they are committed.
 
 ## Overview
 
-Designed for speed and privacy, UXDGuard runs entirely on your local machine with no telemetry, no source uploads, and no mandatory network access. It provides fast, actionable feedback to help enforce secure development practices without relying on cloud services.
+UXDGuard runs entirely on your local machine. Built-in scanning requires no telemetry, no source uploads, and no network access. It reads files statically, reports actionable findings, and never executes scanned project code.
 
 ## Key Features
 
-- **Secret Detection** – Detects API keys, access tokens, private keys, credentials, and database connection strings
-- **Vulnerability Scanning** – Covers SQL injection, command injection, XSS, SSRF, path traversal, weak cryptography, and more
-- **Password Safety** – Identifies plaintext password handling and insecure password comparisons
-- **Staged Scanning** – Scan only Git-staged changes with `uxdguard check --staged`
-- **Git Hooks** – Automate security checks with pre-commit hooks
-- **Configurable Rules** – Enable, disable, or adjust rule severity via `.uxdguard.yaml`
-- **Smart Exclusions** – Automatically skips dependencies, build artifacts, and generated files while preserving manifests and lockfiles
-- **Pagination & Filtering** – Navigate large result sets with paginated terminal output (20 results per page by default)
-- **JSON Output** – Complete, machine-readable reports for CI/CD pipelines
-- **Optional Integrations** – Extend detection with Gitleaks and Semgrep when explicitly configured
-- **Local-First Architecture** – No code execution, no telemetry, and no external data transfer
+- **Secret detection** - API keys, access tokens, private keys, credentials, and database connection strings
+- **Vulnerability scanning** - SQL injection, command injection, XSS, SSRF, path traversal, weak cryptography, insecure JWT handling, and more
+- **Password safety** - Plaintext password handling and insecure password comparisons
+- **Staged scanning** - Inspect the Git index with `uxdguard check --staged`
+- **Git hooks** - Install a pre-commit hook that honors `core.hooksPath` and linked worktrees
+- **Configurable rules** - Enable, disable, or change the severity of individual rules or scanners
+- **Deterministic output** - Stable finding order, deduplication, and forward-slash paths on every platform
+- **Pagination and filtering** - Navigate terminal output with `--page`, `--limit`, `--severity`, and `--rule`
+- **JSON output** - Complete, machine-readable reports for CI pipelines
+- **Cancellation** - Ctrl+C stops a scan promptly and reports cancellation
+- **Symlink controls** - Optional symlink traversal that is confined to the project root and protected against cycles
+- **Optional integrations** - Extend detection with Gitleaks and Semgrep when explicitly configured
 
 ## Supported Platforms
 
@@ -35,6 +36,8 @@ Designed for speed and privacy, UXDGuard runs entirely on your local machine wit
 | Windows | Supported |
 | Linux | Supported |
 | macOS | Supported |
+
+Release binaries are published for Windows amd64, Linux amd64, and macOS arm64. Other Go-supported targets can be built from source.
 
 ## Requirements
 
@@ -58,7 +61,15 @@ uxdguard version
 uxdguard rules
 ```
 
-Ensure your Go bin directory (`$(go env GOPATH)/bin`) is added to your system `PATH`.
+Ensure your Go bin directory (`$(go env GOPATH)/bin`) is on your `PATH`.
+
+### Pre-built Binaries
+
+Download official binaries and SHA-256 checksums from the [latest release](https://github.com/arjunuxd/uxdguard/releases/latest).
+
+```bash
+sha256sum -c uxdguard-linux-amd64.sha256
+```
 
 ### Build from Source
 
@@ -68,11 +79,17 @@ cd uxdguard
 go build ./cmd/uxdguard
 ```
 
-For Windows, replace `uxdguard` with `uxdguard.exe`.
+On Windows the output is `uxdguard.exe`.
 
-### Pre-built Binaries
+## Version Reporting
 
-Download official binaries and checksums from the [GitHub Releases](https://github.com/arjunuxd/uxdguard/releases) page.
+`uxdguard version` reports the version, commit, and build date. The value comes from:
+
+1. Linker flags used by the official release build;
+2. Go module metadata when installed with `go install ...@version`;
+3. The truthful fallback `dev` for an untagged local build.
+
+Release binaries therefore report `1.1.0`, while `go install ...@latest` reports the module version selected by Go.
 
 ## Quick Start
 
@@ -111,33 +128,24 @@ uxdguard hook uninstall
 | `uxdguard check` | Scan all files in the project root |
 | `uxdguard check --staged` | Scan files staged in Git |
 | `uxdguard check --json` | Output results in JSON format |
-| `uxdguard init` | Create `.uxdguard.yaml` configuration file |
-| `uxdguard config validate` | Validate configuration file |
-| `uxdguard rules` | List all active security rules |
+| `uxdguard init` | Create a starter `.uxdguard.yaml` |
+| `uxdguard config validate` | Validate configuration |
+| `uxdguard rules` | List registered scanners |
 | `uxdguard hook [install\|uninstall\|status]` | Manage pre-commit hooks |
 | `uxdguard version` | Display version information |
 | `uxdguard uninstall` | Uninstall UXDGuard |
 
-### Pagination & Filtering
+### Pagination and Filtering
 
 ```bash
-# Default pagination (20 per page)
-uxdguard check
-
-# Custom page size
+uxdguard check                       # 20 findings per page by default
 uxdguard check --limit 50
-
-# Navigate to a specific page
 uxdguard check --page 2
-
-# Filter by severity
 uxdguard check --severity critical
-
-# Filter by rule ID
 uxdguard check --rule UXD-SEC-101
 ```
 
-JSON output remains complete regardless of pagination settings.
+JSON output is always complete and is not affected by pagination options.
 
 ### Configuration
 
@@ -147,31 +155,31 @@ Generate a starter configuration:
 uxdguard init
 ```
 
-For detailed options, see [Configuration Documentation](docs/configuration.md).
+For the full schema, defaults, and rule controls, see [Configuration](docs/configuration.md).
 
 ### Default Exclusions
 
-UXDGuard excludes the following by default: `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.cache`, `coverage`, `target`, `out`, `.venv`, `venv`, `__pycache__`, `.terraform`, `.idea`, `.vscode`. Dependency manifests and lockfiles are always preserved.
+UXDGuard excludes dependency, build, cache, and editor directories by default, including `.git`, `node_modules`, `vendor`, `dist`, `build`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.cache`, `coverage`, `target`, `out`, `.venv`, `venv`, `__pycache__`, `.terraform`, `.idea`, and `.vscode`. Dependency manifests and lockfiles are not excluded.
 
-## Privacy & Security
+## Privacy and Security
 
-- **Local-first execution** – All analysis runs on your machine
-- **No telemetry or tracking** – No usage data is collected
-- **No code execution** – Scanned files are read statically
-- **No data exfiltration** – No source code or findings are transmitted
-- **Safe output** – Secret values are redacted in all reports
-- **Optional integrations only** – External tools require explicit configuration
+- **Local-first execution** - All built-in analysis runs on your machine
+- **No telemetry** - No usage data is collected
+- **No code execution** - Scanned files are read statically
+- **No data exfiltration** - No source code or findings are transmitted
+- **Redacted output** - Secret values are not printed in reports
+- **Optional integrations only** - External tools require explicit configuration
 
-For more information, refer to [Privacy Policy](docs/privacy.md), [Threat Model](docs/threat-model.md), and [Security Policy](docs/security-policy.md).
+For details, see [Privacy](docs/privacy.md), [Threat Model](docs/threat-model.md), and [Security Policy](docs/security-policy.md).
 
 ## Documentation
 
 | Document | Description |
 |---|---|
-| [Configuration](docs/configuration.md) | Schema, defaults, and configuration options |
-| [Rules](docs/rules.md) | Built-in security rules and classifications |
+| [Configuration](docs/configuration.md) | Schema, defaults, and rule controls |
+| [Rules](docs/rules.md) | Built-in rule IDs and classifications |
 | [Git Hooks](docs/hooks.md) | Staged scanning and pre-commit hook setup |
-| [External Scanners](docs/external-scanners.md) | Integration with Gitleaks and Semgrep |
+| [External Scanners](docs/external-scanners.md) | Optional Gitleaks and Semgrep integration |
 | [Privacy](docs/privacy.md) | Data handling and privacy practices |
 | [Threat Model](docs/threat-model.md) | Threat assumptions and scope |
 | [Security Policy](docs/security-policy.md) | Vulnerability reporting guidelines |
@@ -180,18 +188,20 @@ For more information, refer to [Privacy Policy](docs/privacy.md), [Threat Model]
 ## Development
 
 ```bash
-# Build
+gofmt -w .
+go test -count=1 ./...
 go build ./...
-
-# Test
-go test ./...
-
-# Lint
 go vet ./...
-
-# Format
-gofmt -l .
+go mod verify
 ```
+
+## Limitations
+
+- Detection is pattern-based. It does not perform AST, data-flow, or taint analysis.
+- False positives and false negatives are possible; review findings in context.
+- Built-in rules have different language coverage; see [Rules](docs/rules.md).
+- Dependency CVE scanning is not included.
+- Documentation files are skipped by code-pattern rules because examples are not executable, while secret detection still applies to them.
 
 ## Uninstall
 
@@ -199,7 +209,7 @@ gofmt -l .
 uxdguard uninstall
 ```
 
-If self-removal is blocked, manually remove the `uxdguard` executable from your Go bin directory.
+If self-removal is blocked, remove the `uxdguard` executable from your Go bin directory manually.
 
 ## License
 

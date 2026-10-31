@@ -40,7 +40,14 @@ func (s *StagedScanner) Run(ctx *Context) ([]Finding, []Error) {
 
 // ScanStaged performs staged scanning
 func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunResult, error) {
-	var res RunResult
+	res := RunResult{
+		Findings: []Finding{},
+		Errors:   []Error{},
+		Skipped:  []Skipped{},
+	}
+	if cfg == nil {
+		cfg = config.Defaults()
+	}
 	staged, err := gitutil.StagedFiles(repoRoot)
 	if err != nil {
 		return res, err
@@ -53,11 +60,21 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 	if err != nil {
 		return res, err
 	}
+	if err := os.Chmod(tmpDir, 0700); err != nil {
+		os.RemoveAll(tmpDir)
+		return res, err
+	}
 	defer os.RemoveAll(tmpDir)
 	var files []string
 	for _, rel := range staged {
-		// Normalize path
-		rel = filepath.ToSlash(rel)
+		// Normalize and confine the index path before creating a temp file.
+		cleanRel := filepath.Clean(filepath.FromSlash(rel))
+		if cleanRel == "." || filepath.IsAbs(cleanRel) ||
+			cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+			res.Errors = append(res.Errors, Error{ScannerID: "git", Message: "invalid staged path"})
+			continue
+		}
+		rel = filepath.ToSlash(cleanRel)
 		// Check exclusions
 		if project.Excluded(rel, cfg.Scan.Exclusions) {
 			continue
@@ -78,13 +95,17 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 		if err := os.MkdirAll(filepath.Dir(tmpPath), 0755); err != nil {
 			continue
 		}
-		if err := os.WriteFile(tmpPath, content, 0644); err != nil {
+		if err := os.WriteFile(tmpPath, content, 0600); err != nil {
 			continue
 		}
 		files = append(files, tmpPath)
 	}
 	// Run scanners on temp files
 	for _, scanner := range DefaultRegistry().List() {
+		if !isRuleEnabled(scanner.ID(), cfg) {
+			res.Skipped = append(res.Skipped, Skipped{ScannerID: scanner.ID(), Reason: "disabled by configuration"})
+			continue
+		}
 		if ctx != nil {
 			select {
 			case <-ctx.Done():
@@ -101,6 +122,7 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 			res.Errors = append(res.Errors, errs...)
 		}
 	}
+	res.Findings = applyRuleConfig(res.Findings, cfg)
 	SortFindings(res.Findings)
 	res.Findings = DeduplicateFindings(res.Findings)
 	SortFindings(res.Findings)

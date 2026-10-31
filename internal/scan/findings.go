@@ -61,7 +61,7 @@ func SortFindings(findings []Finding) {
 // DeduplicateFindings removes duplicate findings based on stable attributes
 func DeduplicateFindings(findings []Finding) []Finding {
 	seen := map[string]bool{}
-	var out []Finding
+	out := make([]Finding, 0, len(findings))
 	for _, f := range findings {
 		key := string(f.Severity) + "|" + f.RuleID + "|" + f.File + "|" + strconvItoa(f.Line) + "|" + strconvItoa(f.Column) + "|" + f.Title
 		if seen[key] {

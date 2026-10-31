@@ -16,13 +16,30 @@ type Runner struct {
 }
 
 func NewRunner(timeout time.Duration) *Runner {
-	if timeout == 0 {
+	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
 	return &Runner{Timeout: timeout, MaxOut: 10 * 1024 * 1024}
 }
 
+// timeoutFromConfig parses a configured duration, falling back to def when the
+// value is empty or invalid.
+func timeoutFromConfig(value string, def time.Duration) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return def
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil || d <= 0 {
+		return def
+	}
+	return d
+}
+
 func (r *Runner) Run(ctx context.Context, name string, args []string) ([]byte, []byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	cctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, name, args...)

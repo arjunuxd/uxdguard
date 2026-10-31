@@ -22,6 +22,13 @@ func LoadWithConfig(projectRoot, configPath string) (string, *config.Config, err
 			return "", nil, err
 		}
 	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return "", nil, err
+	}
+	if !info.IsDir() {
+		return "", nil, &os.PathError{Op: "load project", Path: root, Err: os.ErrInvalid}
+	}
 	cfg, _, err := config.Load(root, configPath)
 	if err != nil {
 		return "", nil, err

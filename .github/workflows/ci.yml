@@ -51,6 +51,9 @@ jobs:
           fi
           echo "All Go files are formatted."
 
+      - name: Verify modules
+        run: go mod verify
+
       - name: Vet
         run: go vet ./...
 
@@ -58,14 +61,14 @@ jobs:
         run: go build ./...
 
       - name: Test
-        run: go test ./...
+        run: go test -count=1 ./...
 
       - name: Test with coverage
-        run: go test -cover ./...
+        run: go test -count=1 -cover ./...
 
       - name: Test with race detector
         if: runner.os != 'Windows'
-        run: go test -race ./...
+        run: go test -count=1 -race ./...
 
   cross-compile:
     runs-on: ubuntu-latest

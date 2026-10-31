@@ -1,13 +1,13 @@
 ﻿# Security Policy
 
 ## Reporting a Security Issue
-If you believe you have found a security vulnerability in UXDGuard, please report it responsibly through the project''s official GitHub repository issues. Do not publicly disclose the issue until it has been reviewed and addressed by the maintainers.
+If you believe you have found a security vulnerability in UXDGuard, report it privately through the repository's GitHub Security Advisories. Do not publicly disclose the issue until it has been reviewed and addressed by the maintainers.
 
 ## Scope
 This policy applies to the UXDGuard CLI, its built-in components, and official project documentation.
 
 ## Supported Versions
-Security updates are provided for the latest released version and the current main branch. Older versions may not receive updates.
+Security updates are provided for the latest stable release (currently v1.1.0) and the current `main` branch. Older versions may not receive updates.
 
 ## Expectations
 - Provide clear steps to reproduce the issue when possible

@@ -43,12 +43,35 @@ func RepoRoot(start string) (string, error) {
 	return root, nil
 }
 
+// HooksDir returns the effective Git hooks directory for a repository,
+// honoring core.hooksPath and linked worktrees.
+func HooksDir(repoRoot string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "rev-parse", "--git-path", "hooks")
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to locate git hooks: %s", strings.TrimSpace(stderr.String()))
+	}
+	p := strings.TrimSpace(out.String())
+	if p == "" {
+		return "", errors.New("empty git hooks path")
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(repoRoot, p)
+	}
+	return filepath.Abs(p)
+}
+
 // StagedFiles returns NUL-delimited staged file paths.
 func StagedFiles(repoRoot string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// Use -z for NUL delimiters
-	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "diff", "--cached", "--name-only", "-z", "--diff-filter=ACDMRTUXB")
+	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "diff", "--cached", "--name-only", "-z", "--diff-filter=ACMRTUXB")
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out

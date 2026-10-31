@@ -1,18 +1,20 @@
 ﻿# UXDGuard - Architecture
 
-**Version:** v1.1.0 Flash  
-**Type:** Local-first CLI (Go)  
+**Version:** 1.1.0
+
+**Type:** Local-first CLI (Go)
+
 **Scope:** Security and code-quality scanning for source files and staged Git changes
 
 ## Overview
 
-UXDGuard is a modular, local-first Go CLI. It discovers files in a project, runs a registry of scanners, evaluates policy against findings, and reports results to the terminal or as JSON. No telemetry, network calls, or AI API usage are involved in the built-in scanning flow.
+UXDGuard is a modular, local-first Go CLI. It discovers files in a project, runs a registry of scanners, applies rule configuration, evaluates policy against findings, and reports results to the terminal or as JSON. Built-in scanning involves no telemetry, network calls, or AI services.
 
 ## High-Level Flow
 
 ```text
 cmd/uxdguard/main.go
-  -> internal/cli/root.go (flag/command dispatch)
+  -> internal/cli/root.go (command dispatch)
      -> internal/cli/check.go / hook.go / etc.
         -> internal/project (discovery + config loading)
         -> internal/scan (registry + scanners + policy)
@@ -23,69 +25,94 @@ cmd/uxdguard/main.go
 
 | Package | Purpose |
 | --- | --- |
-| `cmd/uxdguard` | Binary entrypoint. Supports version injection via linker flags and calls `cli.SetVersion`. |
-| `internal/cli` | Command parsing and handlers (`check`, `init`, `config validate`, `rules`, `hook`, `uninstall`, `version`). Supports pagination, filtering, and flags. |
-| `internal/app` | Orchestration helpers and exit code mapping. |
+| `cmd/uxdguard` | Binary entrypoint. Receives version/commit/build-date linker values, registers external adapters, and calls `cli.Execute`. |
+| `internal/cli` | Command parsing and handlers (`check`, `init`, `config validate`, `rules`, `hook`, `uninstall`, `version`). Includes version resolution and pagination/filter flags. |
+| `internal/app` | Reusable scan orchestration and exit code mapping. |
 | `internal/exitcode` | Exit code constants (`OK`, `Findings`, `UsageOrConfig`, `OperationalFail`). |
 | `internal/config` | Config schema (`.uxdguard.yaml`), defaults, loading, merging, and validation. |
-| `internal/project` | Project root discovery, file traversal, exclusion matching, symlink handling, size checks, and path-traversal guards. |
-| `internal/scan` | Core engine: scanner interface, registry, context, findings, policy, deduplication, secrets, source checks, advanced checks, staged scanning, redaction. |
-| `internal/gitutil` | Git helpers using explicit `git` args (repo root, staged files, staged content). Includes binary detection. |
+| `internal/project` | Project root discovery, file traversal, exclusion matching, symlink handling, size checks, and path containment. |
+| `internal/scan` | Core engine: scanner interface, registry, context, findings, policy, deduplication, secrets, source checks, advanced checks, staged scanning, and redaction. |
+| `internal/gitutil` | Git helpers using explicit argument lists (repo root, hooks path, staged files, staged content, binary detection). |
 | `internal/report` | Terminal (paginated) and JSON reporters. |
-| `internal/external` | Optional adapters for `gitleaks` and `semgrep` with timeouts and safe process execution. |
+| `internal/external` | Optional Gitleaks and Semgrep adapters with configurable timeouts and safe process execution. |
 
 ## Key Components
 
-### CLI & Commands
+### CLI and Commands
+
 - `uxdguard --version` / `--help`
-- `uxdguard version` - version information
-- `uxdguard init` - create `.uxdguard.yaml` and `.uxdguard.yaml.example`
-- `uxdguard check` - normal scan with `--json`, `--staged`, `--project-root`, `--page`, `--limit`, `--severity`, `--rule`, `--no-progress`
+- `uxdguard version` - version, commit, and build date
+- `uxdguard init` - create `.uxdguard.yaml` without overwriting an existing file
+- `uxdguard check` - scan with `--json`, `--staged`, `--project-root`, `--page`, `--limit`, `--severity`, `--rule`, and `--no-progress`
 - `uxdguard config validate` - validate configuration
-- `uxdguard rules` - list registered scanners/rules
-- `uxdguard hook install|uninstall|status` - manage pre-commit hook
-- `uxdguard uninstall` - remove global executable
+- `uxdguard rules` - list registered scanners
+- `uxdguard hook install|uninstall|status` - manage the pre-commit hook
+- `uxdguard uninstall` - remove the installed executable
+
+### Version Resolution
+
+`internal/cli/version.go` resolves build metadata in this order:
+
+1. Version: linker-injected `main.version`, then Go module metadata (`debug.ReadBuildInfo`) when the main module path matches and the version is not `(devel)`, then the truthful fallback `dev`.
+2. Commit and build date: VCS settings (`vcs.revision`, `vcs.time`), then any linker-injected `main.commit` / `main.buildDate` value, then the truthful fallback `unknown`.
+
+Reporters use the same resolved version as the `version` command, so JSON output and terminal output cannot diverge.
 
 ### Configuration
-- Defaults applied if no config present
-- Merged with user config
-- Validated via `internal/config/validate.go`
-- Supports `scan` (size limits, symlink following, exclusions), `policy.fail_on`, `rules.enable/disable/severity`, `external` (opt-in)
 
-### Discovery & Files
-- Walks from resolved root with symlink safety
-- Respects default exclusions (dependencies, build outputs, caches)
-- Custom exclusions supported
-- Enforces `max_file_size_bytes`
-- Filters regular files only
-- Blocks paths escaping project root
-- Sorted results for deterministic behavior
+- Defaults are applied when no configuration file is present.
+- User configuration is merged with defaults and validated.
+- Supports `scan` (size limit, symlink policy, exclusions), `policy.fail_on`, `rules.enable` / `rules.disable` / `rules.severity`, and optional `external` adapters.
+- Rule filtering is centralized in `internal/scan/registry.go`; every finding, including staged and external findings, passes through it.
+
+### Discovery and Files
+
+- Walks the project root with deterministic ordering.
+- Skips default and user-configured exclusions.
+- Enforces `max_file_size_bytes` and processes regular files only.
+- With `follow_symlinks: false` (default), symlinks are ignored.
+- With `follow_symlinks: true`, symlinks are resolved only when the target stays inside the project root; resolved directories are tracked to prevent cycles.
+- Rejects paths that escape the project root.
+- Produces forward-slash finding paths on every platform.
 
 ### Scanning Engine
-- `Scanner` interface: `ID()`, `Name()`, `Description()`, `Run(*Context) ([]Finding, []Error)`
-- Built-in scanners: `secrets`, `sourcechecks`, `advanced`
-- Context carries `Root`, `Files`, `Cfg`, and optional `context.Context`
-- Findings deduplicated and sorted deterministically
-- Policy evaluates `fail_on` severities
-- Secret redaction applied in outputs
+
+- `Scanner` interface: `ID()`, `Name()`, `Description()`, `Run(*Context) ([]Finding, []Error)`.
+- Built-in scanners: `secrets`, `sourcechecks`, and `advanced`.
+- Optional external scanners: `gitleaks` and `semgrep`, only active when enabled in configuration.
+- Context carries `Root`, `Files`, `Cfg`, and an optional `context.Context`.
+- Context cancellation is checked between files and before scanners run.
+- Findings are filtered by rule configuration, sorted deterministically, deduplicated, and sorted again.
+- Policy evaluates configured `fail_on` severities.
+- Secret values are redacted in terminal and JSON output.
 
 ### Reporting
-- Terminal reporter with pagination (default 20 per page), severity/color support, filters
-- JSON reporter with complete results (no truncation)
-- Machine-readable output safe from progress pollution
+
+- Terminal reporter with pagination (20 per page by default), color support, and severity/rule filters.
+- Empty filtered results are reported explicitly rather than as an invalid page range.
+- JSON reporter includes all findings, skipped scanners, errors, and summary counts.
+- JSON output is not truncated by pagination options.
+
+### Staged Scanning and Hooks
+
+- `--staged` reads indexed content through `git show :path`, so the scan reflects exactly what would be committed.
+- Staged content is written to a private temporary directory (`0700`) with private files (`0600`) and removed afterward.
+- Hook installation uses `git rev-parse --git-path hooks`, honoring `core.hooksPath` and linked worktrees.
+- The generated hook quotes the executable path so installations under paths containing spaces work.
 
 ## Security Design
 
-- **Local-first**: No telemetry, network calls, or external uploads
-- **No code execution**: Static analysis only
-- **Path safety**: Traversal and symlink protections
-- **Secret safety**: Redaction in outputs
-- **Minimal dependencies**: Only `gopkg.in/yaml.v3`
-- **Explicit execution**: Git and external tools use argument lists only
+- **Local-first**: Built-in scanning uses no telemetry, network calls, or external uploads.
+- **No code execution**: Scanned files are analyzed statically.
+- **Path safety**: Discovery confines resolved symlinks to the project root and prevents traversal.
+- **Secret safety**: Secret values are not printed in reports.
+- **Minimal dependencies**: The only runtime dependency is `gopkg.in/yaml.v3`.
+- **Explicit execution**: Git and optional external tools are invoked with argument lists, never through a shell.
 
 ## Limitations
 
-- Pattern-based detection only - no AST parsing or taint analysis
-- May produce false positives or negatives
-- No comprehensive dependency CVE scanning
-- Coverage varies by language and pattern availability
+- Pattern-based detection only; no AST parsing, data-flow, or taint analysis.
+- False positives and false negatives are possible.
+- No dependency CVE scanning.
+- Language coverage varies by rule.
+- External integrations depend on separately installed third-party tools; their network behavior is controlled by those tools.

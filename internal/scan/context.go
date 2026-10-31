@@ -29,3 +29,8 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 	c.Ctx = ctx
 	return c
 }
+
+// Cancelled reports whether the scan context has been cancelled.
+func (c *Context) Cancelled() bool {
+	return c != nil && c.Ctx != nil && c.Ctx.Err() != nil
+}

@@ -1,16 +1,18 @@
 ﻿# Git Hooks
 
 ## Staged Scanning
+
 Scan only staged changes before committing:
 
 ```bash
 uxdguard check --staged
 ```
 
-This scans files as they exist in the Git index, respects exclusions and size limits, and uses the same rules as a normal scan.
+This reads files as they exist in the Git index, respects exclusions and size limits, and applies the same rules and policy as a normal scan. Unstaged edits are not scanned.
 
 ## Hook Management
-Install, check status, or remove the pre-commit hook:
+
+Install, check, or remove the pre-commit hook:
 
 ```bash
 uxdguard hook install
@@ -19,17 +21,22 @@ uxdguard hook uninstall
 ```
 
 ## Behavior
-- The hook runs `uxdguard check --staged` before commits.
-- If blocking findings are detected, the commit is prevented based on the hook''s exit code.
-- Hook installation is safe and only modifies hooks it creates.
-- You can bypass hooks with `git commit --no-verify` if needed.
+
+- The hook runs `uxdguard check --staged` before each commit.
+- If the scan exits non-zero under your `policy.fail_on` settings, the commit is blocked.
+- Installation honors `core.hooksPath` and linked worktrees by using `git rev-parse --git-path hooks`.
+- The executable path is quoted, so installations under paths containing spaces work.
+- Existing hooks that are not managed by UXDGuard are never overwritten or removed.
+- You can bypass hooks with `git commit --no-verify` when necessary.
 
 ## Requirements
-- Git must be installed
-- The project must be a Git repository
-- Hooks are project-local by default
+
+- Git must be installed and on `PATH`.
+- The project must be a Git repository.
+- The hook uses a POSIX `sh` shebang, including on Windows through Git for Windows.
 
 ## Limitations
-- Binary files may be skipped
-- Complex rename scenarios may have edge cases
-- Hook behavior depends on your Git and shell environment
+
+- Binary files are skipped.
+- Rename and submodule edge cases depend on Git index reporting.
+- Hook behavior depends on your Git and shell environment.

@@ -78,7 +78,7 @@ func (t *TerminalReporter) ReportWithOptions(res scan.RunResult, root string, ve
 		}
 		fmt.Fprintf(t.Out, "Scan completed with no issues found.\n")
 		if len(res.Skipped) > 0 {
-			fmt.Fprintf(t.Out, "\nSkipped: %d files\n", len(res.Skipped))
+			fmt.Fprintf(t.Out, "\nSkipped checks: %d\n", len(res.Skipped))
 		}
 		fmt.Fprintf(t.Out, "\nStatus: OK\n")
 		return
@@ -101,73 +101,43 @@ func (t *TerminalReporter) ReportWithOptions(res scan.RunResult, root string, ve
 			filtered = append(filtered, f)
 		}
 		total := len(filtered)
-		totalPages := (total + opts.Limit - 1) / opts.Limit
-		if totalPages == 0 {
-			totalPages = 1
-		}
-		if opts.Page > totalPages {
-			opts.Page = totalPages
-		}
-		start := (opts.Page - 1) * opts.Limit
-		end := start + opts.Limit
-		if end > total {
-			end = total
-		}
-		if useColor {
-			fmt.Fprintf(t.Out, "%sFindings%s (showing %d-%d of %d total)%s\n", bold, reset, start+1, end, total, reset)
-			fmt.Fprintf(t.Out, "%sPage %d of %d%s\n\n", gray, opts.Page, totalPages, reset)
+		if total == 0 {
+			if useColor {
+				fmt.Fprintf(t.Out, "%sFindings%s (0 of %d total match the selected filters)\n\n", bold, reset, len(res.Findings))
+			} else {
+				fmt.Fprintf(t.Out, "Findings: 0 of %d total match the selected filters\n\n", len(res.Findings))
+			}
 		} else {
-			fmt.Fprintf(t.Out, "Findings: (showing %d-%d of %d total)\n", start+1, end, total)
-			fmt.Fprintf(t.Out, "Page %d of %d\n\n", opts.Page, totalPages)
-		}
-		for i := start; i < end; i++ {
-			f := filtered[i]
-			loc := f.File
-			if f.Line > 0 {
-				loc = fmt.Sprintf("%s:%d", f.File, f.Line)
+			totalPages := (total + opts.Limit - 1) / opts.Limit
+			if opts.Page > totalPages {
+				opts.Page = totalPages
 			}
-			sev := strings.ToUpper(string(f.Severity))
-			if useColor {
-				switch sev {
-				case "CRITICAL":
-					fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", red+bold, sev, reset, bold, f.RuleID, reset, f.Title)
-				case "HIGH":
-					fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", red, sev, reset, bold, f.RuleID, reset, f.Title)
-				case "MEDIUM":
-					fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", yellow, sev, reset, bold, f.RuleID, reset, f.Title)
-				case "LOW":
-					fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", blue, sev, reset, bold, f.RuleID, reset, f.Title)
-				default:
-					fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", gray, sev, reset, bold, f.RuleID, reset, f.Title)
-				}
-			} else {
-				fmt.Fprintf(t.Out, "%-8s %s  %s\n", sev, f.RuleID, f.Title)
+			start := (opts.Page - 1) * opts.Limit
+			end := start + opts.Limit
+			if end > total {
+				end = total
 			}
 			if useColor {
-				fmt.Fprintf(t.Out, "         %s%s%s\n", gray, loc, reset)
+				fmt.Fprintf(t.Out, "%sFindings%s (showing %d-%d of %d total)%s\n", bold, reset, start+1, end, total, reset)
+				fmt.Fprintf(t.Out, "%sPage %d of %d%s\n\n", gray, opts.Page, totalPages, reset)
 			} else {
-				fmt.Fprintf(t.Out, "         %s\n", loc)
+				fmt.Fprintf(t.Out, "Findings: (showing %d-%d of %d total)\n", start+1, end, total)
+				fmt.Fprintf(t.Out, "Page %d of %d\n\n", opts.Page, totalPages)
 			}
-			if f.Message != "" {
-				fmt.Fprintf(t.Out, "         %s\n", f.Message)
+			t.renderFindings(filtered[start:end], useColor)
+			if opts.Page < totalPages {
+				fmt.Fprintf(t.Out, "To view more: uxdguard check --page %d --limit %d%s%s\n\n", opts.Page+1, opts.Limit, func() string {
+					if opts.Severity != "" {
+						return " --severity " + opts.Severity
+					}
+					return ""
+				}(), func() string {
+					if opts.Rule != "" {
+						return " --rule " + opts.Rule
+					}
+					return ""
+				}())
 			}
-			if f.Remediation != "" {
-				fmt.Fprintf(t.Out, "         Remediation: %s\n", f.Remediation)
-			}
-			fmt.Fprintf(t.Out, "\n")
-		}
-		if totalPages > 1 {
-			fmt.Fprintf(t.Out, "To view more: uxdguard check --page %d --limit %d%s%s\n\n", opts.Page+1, opts.Limit, func() string {
-				if opts.Severity != "" {
-					return " --severity " + opts.Severity
-				}
-				return ""
-			}(), func() string {
-				if opts.Rule != "" {
-					return " --rule " + opts.Rule
-				}
-				return ""
-			}())
 		}
 	}
 
@@ -209,6 +179,45 @@ func (t *TerminalReporter) ReportWithOptions(res scan.RunResult, root string, ve
 		fmt.Fprintf(t.Out, "Status: Findings detected\n")
 	} else {
 		fmt.Fprintf(t.Out, "Status: OK\n")
+	}
+}
+
+// renderFindings prints one page of findings.
+func (t *TerminalReporter) renderFindings(findings []scan.Finding, useColor bool) {
+	for _, f := range findings {
+		loc := f.File
+		if f.Line > 0 {
+			loc = fmt.Sprintf("%s:%d", f.File, f.Line)
+		}
+		sev := strings.ToUpper(string(f.Severity))
+		if useColor {
+			switch sev {
+			case "CRITICAL":
+				fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", red+bold, sev, reset, bold, f.RuleID, reset, f.Title)
+			case "HIGH":
+				fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", red, sev, reset, bold, f.RuleID, reset, f.Title)
+			case "MEDIUM":
+				fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", yellow, sev, reset, bold, f.RuleID, reset, f.Title)
+			case "LOW":
+				fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", blue, sev, reset, bold, f.RuleID, reset, f.Title)
+			default:
+				fmt.Fprintf(t.Out, "%s%-8s%s %s%s%s  %s\n", gray, sev, reset, bold, f.RuleID, reset, f.Title)
+			}
+		} else {
+			fmt.Fprintf(t.Out, "%-8s %s  %s\n", sev, f.RuleID, f.Title)
+		}
+		if useColor {
+			fmt.Fprintf(t.Out, "         %s%s%s\n", gray, loc, reset)
+		} else {
+			fmt.Fprintf(t.Out, "         %s\n", loc)
+		}
+		if f.Message != "" {
+			fmt.Fprintf(t.Out, "         %s\n", f.Message)
+		}
+		if f.Remediation != "" {
+			fmt.Fprintf(t.Out, "         Remediation: %s\n", f.Remediation)
+		}
+		fmt.Fprintf(t.Out, "\n")
 	}
 }
 

@@ -1,4 +1,3 @@
-
 name: Release
 
 on:
@@ -35,22 +34,61 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version: '1.22.9'
 
+      - name: Validate tag and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Release tag must be a stable semantic version such as v1.1.0; got ${tag}"
+            exit 1
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+          echo "COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "BUILD_DATE=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
       - name: Build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          go build -ldflags "-s -w -X main.version=${VERSION}" -o uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./cmd/uxdguard
+          set -euo pipefail
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+            -o uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} \
+            ./cmd/uxdguard
+
+      - name: Verify binary version
+        if: matrix.goos == 'linux'
+        run: |
+          set -euo pipefail
+          output="$(./uxdguard-${{ matrix.goos }}-${{ matrix.goarch }} version)"
+          echo "$output"
+          printf '%s\n' "$output" | grep -F "Version: ${VERSION}"
+          printf '%s\n' "$output" | grep -F "Commit: ${COMMIT}"
 
       - name: Generate checksum
         run: |
+          set -euo pipefail
           sha256sum uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} > uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}.sha256
           test -s uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
           test -s uxdguard-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}.sha256
@@ -78,15 +116,14 @@ jobs:
 
       - name: Validate and collect assets
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p dist
 
           for d in artifacts/release-*; do
             [ -d "$d" ] || continue
             for f in "$d"/*; do
               [ -f "$f" ] || continue
-              base=$(basename "$f")
-              cp "$f" "dist/$base"
+              cp "$f" "dist/$(basename "$f")"
             done
           done
 
@@ -101,11 +138,55 @@ jobs:
             (cd dist && sha256sum -c "$(basename "$sum")") || { echo "checksum failed for $sum"; exit 1; }
           done
 
-      - name: Create Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
+      - name: Verify Linux release binary
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          chmod +x dist/uxdguard-linux-amd64
+          output="$(dist/uxdguard-linux-amd64 version)"
+          echo "$output"
+          printf '%s\n' "$output" | grep -F "Version: ${version}"
+
+      - name: Create production release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          name: UXDGuard ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: |
+            UXDGuard ${{ github.ref_name }} is the latest stable production release.
+
+            Local-first security and code-quality scanning for Go, JavaScript/TypeScript,
+            Python, Java, PHP, and mixed repositories. Scanning runs entirely on your
+            machine: no code is uploaded and no network service is required during a scan.
+
+            ## Downloads
+
+            - `uxdguard-windows-amd64.exe`
+            - `uxdguard-linux-amd64`
+            - `uxdguard-darwin-arm64`
+
+            Each binary has a matching `.sha256` checksum. Verify a download before use:
+
+            ```sh
+            sha256sum -c uxdguard-linux-amd64.sha256
+            ```
+
+            ## Install with Go
+
+            ```sh
+            go install github.com/arjunuxd/uxdguard/cmd/uxdguard@${{ github.ref_name }}
+            ```
+
+            ## Validate
+
+            ```sh
+            uxdguard version
+            uxdguard check
+            ```
           files: dist/*
-          draft: true
+          draft: false
+          prerelease: false
+          make_latest: true
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

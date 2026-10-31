@@ -3,8 +3,8 @@ package external
 import (
 	"encoding/json"
 	"path/filepath"
+	"time"
 
-	"github.com/arjunuxd/uxdguard/internal/config"
 	"github.com/arjunuxd/uxdguard/internal/scan"
 )
 
@@ -62,7 +62,7 @@ func (s *SemgrepAdapter) Run(ctx *scan.Context) ([]scan.Finding, []scan.Error) {
 		}
 		return findings, errs
 	}
-	runner := NewRunner(120)
+	runner := NewRunner(timeoutFromConfig(ec.Timeout, 120*time.Second))
 	// Use local-only config if specified
 	args := []string{"--json", "--quiet", "--no-git-ignore"}
 	if cfgPath, ok := ec.Options["config"]; ok && cfgPath != "" {
@@ -128,31 +128,4 @@ func (s *SemgrepAdapter) Run(ctx *scan.Context) ([]scan.Finding, []scan.Error) {
 		})
 	}
 	return findings, errs
-}
-
-func projectExcluded2(rel string, cfg *config.Config) bool {
-	if cfg == nil {
-		return false
-	}
-	for _, p := range cfg.Scan.Exclusions {
-		if len(p) > 0 && p[0] != '.' {
-			if contains(rel, p) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (filepath.Base(s) == substr || len(substr) > 0 && (s == substr || (len(s) > len(substr) && s[len(s)-len(substr):] == substr) || (len(substr) <= len(s) && stringContains(s, substr))))
-}
-
-func stringContains(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }

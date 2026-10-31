@@ -37,19 +37,15 @@ func cmdHook(args []string) int {
 }
 
 func getHooksDir(repoRoot string) (string, error) {
-	// Check core.hooksPath
-	// Use git config
-	// Simple approach: use .git/hooks
-	gitDir := filepath.Join(repoRoot, ".git")
-	info, err := os.Stat(gitDir)
-	if err != nil {
-		return "", err
-	}
-	if info.IsDir() {
-		return filepath.Join(gitDir, "hooks"), nil
-	}
-	// git worktree case, not handling fully
-	return filepath.Join(repoRoot, ".git", "hooks"), nil
+	return gitutil.HooksDir(repoRoot)
+}
+
+// hookScript builds a POSIX shell pre-commit hook. The executable path is
+// single-quoted so installations under paths containing spaces work.
+func hookScript(exe string) string {
+	exe = filepath.ToSlash(exe)
+	quoted := "'" + strings.ReplaceAll(exe, "'", `'\''`) + "'"
+	return fmt.Sprintf("#!/bin/sh\n%s\n%s check --staged\nexit $?\n", hookMarker, quoted)
 }
 
 func hookInstall(args []string) int {
@@ -98,13 +94,12 @@ func hookInstall(args []string) int {
 		return app.ExitUsageOrConfig
 	}
 	// Create hook
-	exe, _ := os.Executable()
-	hookContent := fmt.Sprintf(`#!/bin/sh
-%s
-%s check --staged
-exit $?
-`, hookMarker, exe)
-	if err := os.WriteFile(hookPath, []byte(hookContent), 0755); err != nil {
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return app.ExitOperationalFail
+	}
+	if err := os.WriteFile(hookPath, []byte(hookScript(exe)), 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}

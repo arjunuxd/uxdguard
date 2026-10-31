@@ -3,47 +3,9 @@ package root
 import (
 	"fmt"
 	"os"
-	"runtime/debug"
-	"strings"
 
 	"github.com/arjunuxd/uxdguard/internal/app"
 )
-
-var version = "dev"
-var versionOverridden bool
-
-// SetVersion allows overriding the version at build time using linker flags.
-func SetVersion(v string) {
-	v = strings.TrimSpace(v)
-	if v != "" {
-		version = strings.TrimPrefix(v, "v")
-		versionOverridden = true
-	}
-}
-
-// resolveVersion detects the Go module version when no linker version is supplied.
-func resolveVersion() string {
-	// Explicit linker-injected release version takes priority.
-	if versionOverridden {
-		return version
-	}
-
-	// Read embedded Go module build information.
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "dev"
-	}
-
-	// Only use a valid module version.
-	moduleVersion := strings.TrimSpace(info.Main.Version)
-	if info.Main.Path == "github.com/arjunuxd/uxdguard" &&
-		moduleVersion != "" &&
-		moduleVersion != "(devel)" {
-		return strings.TrimPrefix(moduleVersion, "v")
-	}
-
-	return "dev"
-}
 
 // Execute runs the CLI.
 func Execute(args []string) int {
@@ -59,14 +21,17 @@ func Execute(args []string) int {
 	}
 
 	if args[0] == "--version" || args[0] == "-v" {
-		fmt.Printf("uxdguard version %s\n", resolveVersion())
+		fmt.Printf("uxdguard version %s\n", CurrentVersion())
 		return app.ExitOK
 	}
 
 	if args[0] == "version" {
+		build := ResolveBuildInfo()
 		fmt.Printf(
-			"UXDGuard\nSecurity Scanner\nVersion: %s\n",
-			resolveVersion(),
+			"UXDGuard\nSecurity Scanner\nVersion: %s\nCommit: %s\nBuild date: %s\n",
+			build.Version,
+			build.Commit,
+			build.BuildDate,
 		)
 		return app.ExitOK
 	}
