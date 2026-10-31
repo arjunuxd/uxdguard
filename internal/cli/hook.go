@@ -41,9 +41,11 @@ func getHooksDir(repoRoot string) (string, error) {
 }
 
 // hookScript builds a POSIX shell pre-commit hook. The executable path is
-// single-quoted so installations under paths containing spaces work.
+// single-quoted so installations under paths containing spaces work. Windows
+// separators are rewritten to POSIX ones regardless of the host platform, so
+// a hook generated for a Windows path stays valid when inspected on Unix.
 func hookScript(exe string) string {
-	exe = filepath.ToSlash(exe)
+	exe = strings.ReplaceAll(exe, `\`, "/")
 	quoted := "'" + strings.ReplaceAll(exe, "'", `'\''`) + "'"
 	return fmt.Sprintf("#!/bin/sh\n%s\n%s check --staged\nexit $?\n", hookMarker, quoted)
 }
