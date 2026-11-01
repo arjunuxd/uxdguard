@@ -79,7 +79,7 @@ func hookInstall(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
-	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+	if err := os.MkdirAll(hooksDir, 0750); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
@@ -101,7 +101,7 @@ func hookInstall(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
-	f, err := os.OpenFile(hookPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0755)
+	f, err := createExclusive(hookPath, 0755)
 	if err != nil {
 		if os.IsExist(err) {
 			fmt.Fprintf(os.Stderr, "existing pre-commit hook found; refusing to overwrite\n")

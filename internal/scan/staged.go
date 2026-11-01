@@ -130,8 +130,16 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 }
 
 // validStagedPath normalizes a Git index path and reports whether it is safe
-// to place under the staged-scan temporary directory.
+// to place under the staged-scan temporary directory. Git always records index
+// paths with forward slashes, so Windows-style input is rejected on every
+// platform instead of relying on the host path rules.
 func validStagedPath(rel string) (string, bool) {
+	if strings.ContainsRune(rel, '\\') ||
+		strings.HasPrefix(rel, "/") ||
+		strings.HasPrefix(rel, ":") ||
+		hasDriveLetter(rel) {
+		return "", false
+	}
 	cleanRel := filepath.Clean(filepath.FromSlash(rel))
 	if cleanRel == "." ||
 		filepath.IsAbs(cleanRel) ||
@@ -143,6 +151,17 @@ func validStagedPath(rel string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(cleanRel), true
+}
+
+// hasDriveLetter reports whether p starts with a Windows volume prefix such as
+// "C:". The check is host-independent so a Windows path cannot slip through on
+// Linux or macOS.
+func hasDriveLetter(p string) bool {
+	if len(p) < 2 || p[1] != ':' {
+		return false
+	}
+	c := p[0]
+	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
 }
 
 func runStagedScanner(s Scanner, repoRoot, tmpDir string, files []string, cfg *config.Config, ctx context.Context) ([]Finding, []Error) {

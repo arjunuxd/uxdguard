@@ -32,4 +32,7 @@ func TestValidStagedPathRejectsWindowsVolume(t *testing.T) {
 	if _, ok := validStagedPath(`C:relative`); ok {
 		t.Fatal("volume-relative Windows path should be rejected")
 	}
+	if _, ok := validStagedPath(`src\main.go`); ok {
+		t.Fatal("backslash-separated path should be rejected")
+	}
 }

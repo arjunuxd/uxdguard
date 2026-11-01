@@ -241,9 +241,9 @@ func cmdInit(args []string) int {
 		return app.ExitUsageOrConfig
 	}
 	target := filepath.Join(root, ".uxdguard.yaml")
-	// O_EXCL refuses to follow an existing file or a dangling symlink, so a
-	// repository cannot redirect the write outside the project root.
-	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	// Refuse to follow an existing file or dangling symlink so a repository
+	// cannot redirect the write outside the project root.
+	f, err := createExclusive(target, 0644)
 	if err != nil {
 		if os.IsExist(err) {
 			fmt.Fprintf(os.Stderr, "config already exists: %s\n", target)
