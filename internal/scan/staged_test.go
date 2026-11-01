@@ -36,3 +36,20 @@ func TestValidStagedPathRejectsWindowsVolume(t *testing.T) {
 		t.Fatal("backslash-separated path should be rejected")
 	}
 }
+
+func TestValidStagedPathRejectsWindowsDeviceNames(t *testing.T) {
+	for _, in := range []string{
+		"CON", "con", "CON.txt", "CON.", "CON ", "dir/CON",
+		"PRN", "AUX", "NUL", "NUL.txt", "COM1", "LPT9", "src/COM1.txt",
+		"CONIN$", "CONOUT$", "CON:stream", "NUL:stream", "COM1:stream",
+	} {
+		if _, ok := validStagedPath(in); ok {
+			t.Fatalf("validStagedPath(%q) should reject a Windows device name", in)
+		}
+	}
+	for _, in := range []string{"console.js", "auxiliary.py", "com10.txt", "lpt0.txt", "src/nullable.go"} {
+		if _, ok := validStagedPath(in); !ok {
+			t.Fatalf("validStagedPath(%q) should accept a normal name", in)
+		}
+	}
+}

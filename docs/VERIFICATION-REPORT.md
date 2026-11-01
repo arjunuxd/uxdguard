@@ -102,7 +102,7 @@ Build date: <date>
 
 - Staged scanning reads the Git index, not working-tree edits.
 - Staged deletions are excluded from the file list.
-- Index paths are validated before temporary files are created: absolute paths, Windows volume paths, backslash-separated paths, `..` traversal, leading separators, and pathspec-like leading colons are rejected. The Windows checks apply on every host OS.
+- Index paths are validated before temporary files are created: absolute paths, Windows volume paths, backslash-separated paths, `..` traversal, leading separators, pathspec-like leading colons, and Windows reserved device names (`CON`, `NUL`, `COM1`, `LPT1`, `CONIN$`, and variants with extensions or trailing dots/spaces) are rejected. The Windows checks apply on every host OS.
 - Staged blob reads are capped at `scan.max_file_size_bytes`; an oversized blob is skipped without exhausting memory.
 - Staged content uses a private `0700` temporary directory, `0700` subdirectories, and `0600` files.
 - Hook installation honours `core.hooksPath` and linked worktrees.

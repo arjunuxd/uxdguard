@@ -137,7 +137,8 @@ func validStagedPath(rel string) (string, bool) {
 	if strings.ContainsRune(rel, '\\') ||
 		strings.HasPrefix(rel, "/") ||
 		strings.HasPrefix(rel, ":") ||
-		hasDriveLetter(rel) {
+		hasDriveLetter(rel) ||
+		hasWindowsDeviceName(rel) {
 		return "", false
 	}
 	cleanRel := filepath.Clean(filepath.FromSlash(rel))
@@ -162,6 +163,40 @@ func hasDriveLetter(p string) bool {
 	}
 	c := p[0]
 	return c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
+}
+
+// hasWindowsDeviceName reports whether any path component is a Windows
+// reserved device name. Writing such a path on Windows targets a device rather
+// than the staged temp directory: CON redirects content to the console and a
+// later read can block waiting for input. The check is host-independent so a
+// device-shaped index entry is rejected before any temp file is created.
+func hasWindowsDeviceName(p string) bool {
+	for _, part := range strings.Split(p, "/") {
+		if isWindowsDeviceName(part) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWindowsDeviceName(name string) bool {
+	// Windows ignores trailing dots and spaces, so "CON.", "CON " and
+	// "CON.txt" all resolve to the device.
+	name = strings.TrimRight(name, " .")
+	if i := strings.IndexAny(name, ".:"); i >= 0 {
+		name = strings.TrimRight(name[:i], " ")
+	}
+	switch strings.ToUpper(name) {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	if len(name) == 4 {
+		switch strings.ToUpper(name[:3]) {
+		case "COM", "LPT":
+			return name[3] >= '1' && name[3] <= '9'
+		}
+	}
+	return false
 }
 
 func runStagedScanner(s Scanner, repoRoot, tmpDir string, files []string, cfg *config.Config, ctx context.Context) ([]Finding, []Error) {
