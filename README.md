@@ -358,7 +358,7 @@ This affects only the Go module path for `v1.1.0`. Full details are in
 - **Redacted output** - Secret values are not printed in reports
 - **Optional integrations only** - External tools require explicit configuration
 
-For details, see [Privacy](docs/privacy.md), [Threat Model](docs/threat-model.md), and [Security Policy](docs/security-policy.md).
+For details, see [Privacy](docs/privacy.md), [Threat Model](docs/threat-model.md), and [Security Policy](SECURITY.md).
 
 ## Documentation
 
@@ -370,10 +370,14 @@ For details, see [Privacy](docs/privacy.md), [Threat Model](docs/threat-model.md
 | [External Scanners](docs/external-scanners.md) | Optional Gitleaks and Semgrep integration |
 | [Privacy](docs/privacy.md) | Data handling and privacy practices |
 | [Threat Model](docs/threat-model.md) | Threat assumptions and scope |
-| [Security Policy](docs/security-policy.md) | Vulnerability reporting guidelines |
+| [Security Policy](SECURITY.md) | Vulnerability reporting and supported versions |
+| [Contributing](CONTRIBUTING.md) | Development setup, tests, and pull request guidelines |
 | [Architecture](architecture.md) | Internal architecture and design |
 
 ## Development
+
+For setup, project layout, testing, and pull request guidelines, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 gofmt -w .
