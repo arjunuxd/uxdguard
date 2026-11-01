@@ -88,7 +88,7 @@ Reporters use the same resolved version as the `version` command, so JSON output
 
 ### Reporting
 
-- Terminal reporter with pagination (20 per page by default), color support, and severity/rule filters.
+- Terminal reporter with pagination (30 per page by default), color support, and severity/rule filters.
 - Empty filtered results are reported explicitly rather than as an invalid page range.
 - JSON reporter includes all findings, skipped scanners, errors, and summary counts.
 - JSON output is not truncated by pagination options.

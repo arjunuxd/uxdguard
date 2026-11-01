@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,38 +62,37 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 		return res, err
 	}
 	if err := os.Chmod(tmpDir, 0700); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		return res, err
 	}
 	defer os.RemoveAll(tmpDir)
 	var files []string
 	for _, rel := range staged {
 		// Normalize and confine the index path before creating a temp file.
-		cleanRel := filepath.Clean(filepath.FromSlash(rel))
-		if cleanRel == "." || filepath.IsAbs(cleanRel) ||
-			cleanRel == ".." || strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) {
+		cleanRel, ok := validStagedPath(rel)
+		if !ok {
 			res.Errors = append(res.Errors, Error{ScannerID: "git", Message: "invalid staged path"})
 			continue
 		}
-		rel = filepath.ToSlash(cleanRel)
+		rel = cleanRel
 		// Check exclusions
 		if project.Excluded(rel, cfg.Scan.Exclusions) {
 			continue
 		}
-		content, err := gitutil.GetStagedContent(repoRoot, rel)
+		content, err := gitutil.GetStagedContentLimited(repoRoot, rel, cfg.Scan.MaxFileSizeBytes)
 		if err != nil {
+			if errors.Is(err, gitutil.ErrStagedBlobTooLarge) {
+				continue
+			}
 			res.Errors = append(res.Errors, Error{ScannerID: "git", Message: "failed to read staged content"})
 			continue
 		}
 		if gitutil.IsBinaryContent(content) {
 			continue
 		}
-		if cfg.Scan.MaxFileSizeBytes > 0 && int64(len(content)) > cfg.Scan.MaxFileSizeBytes {
-			continue
-		}
 		// Write to temp file preserving relative structure
 		tmpPath := filepath.Join(tmpDir, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(tmpPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(tmpPath), 0700); err != nil {
 			continue
 		}
 		if err := os.WriteFile(tmpPath, content, 0600); err != nil {
@@ -127,6 +127,22 @@ func ScanStaged(ctx context.Context, repoRoot string, cfg *config.Config) (RunRe
 	res.Findings = DeduplicateFindings(res.Findings)
 	SortFindings(res.Findings)
 	return res, nil
+}
+
+// validStagedPath normalizes a Git index path and reports whether it is safe
+// to place under the staged-scan temporary directory.
+func validStagedPath(rel string) (string, bool) {
+	cleanRel := filepath.Clean(filepath.FromSlash(rel))
+	if cleanRel == "." ||
+		filepath.IsAbs(cleanRel) ||
+		filepath.VolumeName(cleanRel) != "" ||
+		strings.HasPrefix(cleanRel, string(filepath.Separator)) ||
+		cleanRel == ".." ||
+		strings.HasPrefix(cleanRel, ".."+string(filepath.Separator)) ||
+		strings.HasPrefix(cleanRel, ":") {
+		return "", false
+	}
+	return filepath.ToSlash(cleanRel), true
 }
 
 func runStagedScanner(s Scanner, repoRoot, tmpDir string, files []string, cfg *config.Config, ctx context.Context) ([]Finding, []Error) {

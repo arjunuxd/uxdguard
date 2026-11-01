@@ -70,8 +70,7 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 			continue
 		}
 		scanner := bufio.NewScanner(file)
-		const maxTokenSize = 1024 * 64
-		scanner.Buffer(make([]byte, maxTokenSize), maxTokenSize)
+		scanner.Buffer(make([]byte, 64*1024), scannerMaxTokenSize(ctx.Cfg))
 		scanner.Split(bufio.ScanLines)
 		lineNum := 0
 		ext := strings.ToLower(filepath.Ext(f))
@@ -319,7 +318,7 @@ func (s *SourceCheckScanner) Run(ctx *Context) ([]Finding, []Error) {
 		if err := scanner.Err(); err != nil {
 			errs = append(errs, Error{ScannerID: s.ID(), Message: "error reading file"})
 		}
-		file.Close()
+		_ = file.Close()
 	}
 	return findings, errs
 }

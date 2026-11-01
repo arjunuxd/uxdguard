@@ -65,6 +65,37 @@ func TestLoadRejectsConfigOutsideProjectRoot(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsSymlinkEscapingProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	outsideRoot := t.TempDir()
+	outside := filepath.Join(outsideRoot, "config.yaml")
+	if err := os.WriteFile(outside, []byte("version: 1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, ".uxdguard.yaml")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, _, err := Load(root, ""); err == nil {
+		t.Fatal("expected error for config symlink escaping project root")
+	}
+}
+
+func TestLoadAcceptsSymlinkInsideProjectRoot(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "real-config.yaml")
+	if err := os.WriteFile(target, []byte("version: 1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, ".uxdguard.yaml")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, _, err := Load(root, ""); err != nil {
+		t.Fatalf("symlink inside project root should be accepted: %v", err)
+	}
+}
+
 func TestLoadAppliesDefaultsForAbsentKeys(t *testing.T) {
 	root, _ := writeConfig(t, "version: 1\n")
 	cfg, _, err := Load(root, "")

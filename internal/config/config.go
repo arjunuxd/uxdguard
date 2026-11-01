@@ -84,6 +84,11 @@ func Load(projectRoot, configPath string) (*Config, string, error) {
 	} else if err != nil {
 		return nil, path, err
 	}
+	// Reject a config file that only appears to live inside the project but
+	// resolves elsewhere through a symlink.
+	if err := ensureWithinRoot(absRoot, path); err != nil {
+		return nil, path, err
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, path, err
@@ -119,6 +124,24 @@ func Load(projectRoot, configPath string) (*Config, string, error) {
 		return nil, path, err
 	}
 	return &cfg, path, nil
+}
+
+// ensureWithinRoot verifies that target resolves inside root, following
+// symlinks on both paths.
+func ensureWithinRoot(root, target string) error {
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
+	realTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(realRoot, realTarget)
+	if err != nil || rel == ".." || strings.HasPrefix(filepath.ToSlash(rel), "../") {
+		return errors.New("config file resolves outside project root")
+	}
+	return nil
 }
 
 func hasKey(m map[string]interface{}, key string) bool {

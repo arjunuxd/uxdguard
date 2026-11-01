@@ -43,9 +43,14 @@ func (r *Runner) Run(ctx context.Context, name string, args []string) ([]byte, [
 	cctx, cancel := context.WithTimeout(ctx, r.Timeout)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, name, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	limit := r.MaxOut
+	if limit <= 0 {
+		limit = 10 * 1024 * 1024
+	}
+	stdout := &limitedBuffer{limit: limit}
+	stderr := &limitedBuffer{limit: limit}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	err := cmd.Run()
 	if err != nil {
 		if errors.Is(cctx.Err(), context.DeadlineExceeded) {
@@ -55,6 +60,40 @@ func (r *Runner) Run(ctx context.Context, name string, args []string) ([]byte, [
 		return stdout.Bytes(), stderr.Bytes(), err
 	}
 	return stdout.Bytes(), stderr.Bytes(), nil
+}
+
+// limitedBuffer caps captured process output so a misbehaving external tool
+// cannot exhaust memory.
+type limitedBuffer struct {
+	buf       bytes.Buffer
+	limit     int64
+	truncated bool
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	remaining := b.limit - int64(b.buf.Len())
+	if remaining <= 0 {
+		b.truncated = true
+		return len(p), nil
+	}
+	if int64(len(p)) > remaining {
+		_, _ = b.buf.Write(p[:remaining])
+		b.truncated = true
+		return len(p), nil
+	}
+	return b.buf.Write(p)
+}
+
+func (b *limitedBuffer) Bytes() []byte {
+	out := b.buf.Bytes()
+	if !b.truncated {
+		return out
+	}
+	// Copy so callers cannot mutate the buffer's backing array.
+	capped := make([]byte, 0, len(out)+16)
+	capped = append(capped, out...)
+	capped = append(capped, []byte("\n... (truncated)")...)
+	return capped
 }
 
 func IsInstalled(name string) bool {

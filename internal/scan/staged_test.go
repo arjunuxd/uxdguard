@@ -1,0 +1,35 @@
+package scan
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func TestValidStagedPathAcceptsRepositoryPaths(t *testing.T) {
+	for _, in := range []string{"app.js", "src/main.go", "docs/readme.md"} {
+		got, ok := validStagedPath(in)
+		if !ok {
+			t.Fatalf("validStagedPath(%q) rejected a normal path", in)
+		}
+		if got != filepath.ToSlash(in) {
+			t.Fatalf("validStagedPath(%q) = %q", in, got)
+		}
+	}
+}
+
+func TestValidStagedPathRejectsEscapes(t *testing.T) {
+	for _, in := range []string{"", ".", "../secret", "../../etc/passwd", "/etc/passwd", ":evil"} {
+		if _, ok := validStagedPath(in); ok {
+			t.Fatalf("validStagedPath(%q) should be rejected", in)
+		}
+	}
+}
+
+func TestValidStagedPathRejectsWindowsVolume(t *testing.T) {
+	if _, ok := validStagedPath(`C:\Windows\system32\drivers\etc\hosts`); ok {
+		t.Fatal("absolute Windows path should be rejected")
+	}
+	if _, ok := validStagedPath(`C:relative`); ok {
+		t.Fatal("volume-relative Windows path should be rejected")
+	}
+}

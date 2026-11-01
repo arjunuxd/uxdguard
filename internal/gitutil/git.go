@@ -95,20 +95,64 @@ func StagedFiles(repoRoot string) ([]string, error) {
 	return files, nil
 }
 
+// ErrStagedBlobTooLarge is returned when a staged file exceeds the requested
+// size limit.
+var ErrStagedBlobTooLarge = errors.New("staged blob exceeds size limit")
+
 // GetStagedContent reads staged blob content for path (HEAD :path or :path)
 func GetStagedContent(repoRoot, relPath string) ([]byte, error) {
+	return getStagedContent(repoRoot, relPath, 0)
+}
+
+// GetStagedContentLimited reads staged blob content while keeping at most limit
+// bytes in memory. A limit of zero means unlimited. Large blobs are rejected
+// with ErrStagedBlobTooLarge instead of exhausting memory.
+func GetStagedContentLimited(repoRoot, relPath string, limit int64) ([]byte, error) {
+	return getStagedContent(repoRoot, relPath, limit)
+}
+
+func getStagedContent(repoRoot, relPath string, limit int64) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// Use git show :path to read from index
 	cmd := exec.CommandContext(ctx, "git", "-C", repoRoot, "show", ":"+relPath)
-	var out bytes.Buffer
+	out := &cappedBuffer{limit: limit}
 	var stderr bytes.Buffer
-	cmd.Stdout = &out
+	cmd.Stdout = out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("failed to read staged content: %s", strings.TrimSpace(stderr.String()))
 	}
-	return out.Bytes(), nil
+	if out.overflow {
+		return nil, ErrStagedBlobTooLarge
+	}
+	return out.buf.Bytes(), nil
+}
+
+// cappedBuffer accumulates up to limit bytes and discards the rest so a large
+// subprocess stream cannot exhaust memory.
+type cappedBuffer struct {
+	buf      bytes.Buffer
+	limit    int64
+	overflow bool
+}
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	if c.limit > 0 {
+		remaining := c.limit - int64(c.buf.Len())
+		if remaining <= 0 {
+			c.overflow = true
+			return n, nil
+		}
+		if int64(len(p)) > remaining {
+			_, _ = c.buf.Write(p[:remaining])
+			c.overflow = true
+			return n, nil
+		}
+	}
+	_, _ = c.buf.Write(p)
+	return n, nil
 }
 
 // IsBinaryContent checks for null bytes

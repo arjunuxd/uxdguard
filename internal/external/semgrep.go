@@ -64,7 +64,7 @@ func (s *SemgrepAdapter) Run(ctx *scan.Context) ([]scan.Finding, []scan.Error) {
 	}
 	runner := NewRunner(timeoutFromConfig(ec.Timeout, 120*time.Second))
 	// Use local-only config if specified
-	args := []string{"--json", "--quiet", "--no-git-ignore"}
+	args := []string{"--json", "--quiet", "--no-git-ignore", "--metrics=off", "--disable-version-check"}
 	if cfgPath, ok := ec.Options["config"]; ok && cfgPath != "" {
 		// Validate path is safe (local)
 		if filepath.IsAbs(cfgPath) {

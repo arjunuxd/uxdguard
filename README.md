@@ -200,6 +200,8 @@ uxdguard check
 ```
 
 UXDGuard scans the current directory recursively. No configuration is required.
+It prints scan progress (files found and elapsed time) before the report. Use
+`--no-progress` to suppress those lines.
 
 ### Step 3: Read the report
 
@@ -212,7 +214,7 @@ Security Scanner · 1.1.0
 Project: /path/to/your-project
 
 Findings: (showing 1-2 of 2 total)
-Page 1 of 1
+Page 1 of 1 (30 per page)
 
 HIGH     UXD-SEC-200  Use of dynamic code evaluation detected
          app.js:1
@@ -272,12 +274,26 @@ uxdguard check --staged                     # staged Git changes only
 uxdguard check --severity high              # only high severity findings
 uxdguard check --rule UXD-SEC-101           # one rule
 uxdguard check --page 2 --limit 50          # paginate terminal output
+uxdguard check --no-progress                # hide scanning progress lines
 uxdguard check --project-root /path/to/repo # scan another directory
 uxdguard init                               # create .uxdguard.yaml
 uxdguard config validate                    # validate configuration
 uxdguard rules                              # list scanners
 uxdguard version                            # version, commit, build date
 ```
+
+Terminal reports show 30 findings per page by default and always state the
+total page count, for example:
+
+```text
+Findings: (showing 1-30 of 65 total)
+Page 1 of 3 (30 per page)
+
+Pages: 3 total. Navigate: uxdguard check --page 2 --limit 30
+```
+
+If you request a page past the end, UXDGuard tells you how many pages exist and
+shows the last page.
 
 ### Command reference
 

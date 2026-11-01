@@ -3,7 +3,25 @@ package scan
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/arjunuxd/uxdguard/internal/config"
 )
+
+// scannerMaxTokenSize returns the largest line the line scanners must accept.
+// Files larger than the configured max are already skipped, so the line limit
+// never needs to exceed it. The cap avoids unbounded allocation from a
+// pathological configured value.
+func scannerMaxTokenSize(cfg *config.Config) int {
+	const minToken = 64 * 1024
+	const maxToken = 16 * 1024 * 1024
+	if cfg == nil || cfg.Scan.MaxFileSizeBytes <= minToken {
+		return minToken
+	}
+	if cfg.Scan.MaxFileSizeBytes > maxToken {
+		return maxToken
+	}
+	return int(cfg.Scan.MaxFileSizeBytes)
+}
 
 // isDocFile reports whether a path is documentation rather than executable
 // source. Secrets are still scanned in documentation; code-pattern rules are

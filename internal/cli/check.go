@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/arjunuxd/uxdguard/internal/app"
 	"github.com/arjunuxd/uxdguard/internal/config"
@@ -16,13 +19,31 @@ import (
 	"github.com/arjunuxd/uxdguard/internal/scan"
 )
 
+// parsePositiveInt parses a strictly positive integer flag value.
+func parsePositiveInt(flag, value string) (int, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || n < 1 {
+		return 0, fmt.Errorf("%s requires a positive integer, got %q", flag, value)
+	}
+	return n, nil
+}
+
+// validSeverity reports whether s is a supported severity filter.
+func validSeverity(s string) bool {
+	switch s {
+	case "critical", "high", "medium", "low", "info":
+		return true
+	}
+	return false
+}
+
 func cmdCheck(args []string) int {
 	version := CurrentVersion()
 	jsonOut := false
 	projectRoot := ""
 	staged := false
 	page := 1
-	limit := 20
+	limit := 30
 	severity := ""
 	ruleFilter := ""
 	noProgress := false
@@ -45,17 +66,31 @@ func cmdCheck(args []string) int {
 			continue
 		}
 		if args[i] == "--page" && i+1 < len(args) {
-			fmt.Sscanf(args[i+1], "%d", &page)
+			v, err := parsePositiveInt("--page", args[i+1])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return app.ExitUsageOrConfig
+			}
+			page = v
 			i++
 			continue
 		}
 		if args[i] == "--limit" && i+1 < len(args) {
-			fmt.Sscanf(args[i+1], "%d", &limit)
+			v, err := parsePositiveInt("--limit", args[i+1])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+				return app.ExitUsageOrConfig
+			}
+			limit = v
 			i++
 			continue
 		}
 		if args[i] == "--severity" && i+1 < len(args) {
-			severity = args[i+1]
+			severity = strings.ToLower(strings.TrimSpace(args[i+1]))
+			if !validSeverity(severity) {
+				fmt.Fprintf(os.Stderr, "error: --severity must be one of critical, high, medium, low, info; got %q\n", args[i+1])
+				return app.ExitUsageOrConfig
+			}
 			i++
 			continue
 		}
@@ -90,10 +125,17 @@ func cmdCheck(args []string) int {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return app.ExitUsageOrConfig
 		}
+		if !jsonOut && !noProgress {
+			fmt.Fprintf(os.Stdout, "Scanning staged changes...\n")
+		}
+		scanStart := time.Now()
 		res, err := scan.ScanStaged(ctx, repoRoot, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			return app.ExitOperationalFail
+		}
+		if !jsonOut && !noProgress {
+			fmt.Fprintf(os.Stdout, "Scan completed in %s\n\n", time.Since(scanStart).Round(time.Millisecond))
 		}
 		if jsonOut {
 			jr := &report.JSONReporter{Out: os.Stdout}
@@ -104,11 +146,10 @@ func cmdCheck(args []string) int {
 		} else {
 			tr := &report.TerminalReporter{Out: os.Stdout, Err: os.Stderr}
 			tr.ReportWithOptions(res, repoRoot, version, report.ReportOptions{
-				Page:       page,
-				Limit:      limit,
-				Severity:   severity,
-				Rule:       ruleFilter,
-				NoProgress: noProgress,
+				Page:     page,
+				Limit:    limit,
+				Severity: severity,
+				Rule:     ruleFilter,
 			})
 		}
 		exit := scan.EvaluatePolicy(cfg, res)
@@ -125,13 +166,27 @@ func cmdCheck(args []string) int {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitUsageOrConfig
 	}
-	files, err := project.Discover(root, cfg)
+	if !jsonOut && !noProgress {
+		fmt.Fprintf(os.Stdout, "Scanning %s\n", root)
+	}
+	pd := newProgress(os.Stdout, !jsonOut && !noProgress)
+	files, err := project.DiscoverWithProgress(root, cfg, func(count int) {
+		pd.Status("  Discovering files... %d found", count)
+	})
+	pd.End()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}
+	if !jsonOut && !noProgress {
+		fmt.Fprintf(os.Stdout, "  %d files found; running scanners...\n", len(files))
+	}
 	sc := scan.NewContext(root, cfg, files).WithContext(ctx)
+	scanStart := time.Now()
 	res := scan.DefaultRegistry().Run(sc)
+	if !jsonOut && !noProgress {
+		fmt.Fprintf(os.Stdout, "Scan completed in %s\n\n", time.Since(scanStart).Round(time.Millisecond))
+	}
 	if jsonOut {
 		jr := &report.JSONReporter{Out: os.Stdout}
 		if err := jr.Report(res, root, version); err != nil {
@@ -141,11 +196,10 @@ func cmdCheck(args []string) int {
 	} else {
 		tr := &report.TerminalReporter{Out: os.Stdout, Err: os.Stderr}
 		tr.ReportWithOptions(res, root, version, report.ReportOptions{
-			Page:       page,
-			Limit:      limit,
-			Severity:   severity,
-			Rule:       ruleFilter,
-			NoProgress: noProgress,
+			Page:     page,
+			Limit:    limit,
+			Severity: severity,
+			Rule:     ruleFilter,
 		})
 	}
 	// Evaluate policy
@@ -187,9 +241,16 @@ func cmdInit(args []string) int {
 		return app.ExitUsageOrConfig
 	}
 	target := filepath.Join(root, ".uxdguard.yaml")
-	if _, err := os.Stat(target); err == nil {
-		fmt.Fprintf(os.Stderr, "config already exists: %s\n", target)
-		return app.ExitUsageOrConfig
+	// O_EXCL refuses to follow an existing file or a dangling symlink, so a
+	// repository cannot redirect the write outside the project root.
+	f, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		if os.IsExist(err) {
+			fmt.Fprintf(os.Stderr, "config already exists: %s\n", target)
+			return app.ExitUsageOrConfig
+		}
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return app.ExitOperationalFail
 	}
 	example := `version: 1
 
@@ -215,7 +276,12 @@ policy:
 #   severity:
 #     UXD-SEC-203: low
 `
-	if err := os.WriteFile(target, []byte(example), 0644); err != nil {
+	if _, err := f.WriteString(example); err != nil {
+		_ = f.Close()
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return app.ExitOperationalFail
+	}
+	if err := f.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return app.ExitOperationalFail
 	}

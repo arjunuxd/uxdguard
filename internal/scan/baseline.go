@@ -51,10 +51,10 @@ func SaveBaseline(path string, res RunResult) error {
 		})
 	}
 	b, _ := json.MarshalIndent(bl, "", "  ")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0644)
+	return os.WriteFile(path, b, 0600)
 }
 
 func FilterBaseline(res RunResult, bl *Baseline) RunResult {
