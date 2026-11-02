@@ -1,6 +1,6 @@
 ﻿# UXDGuard - Architecture
 
-**Version:** 1.1.1
+**Version:** 1.1.0
 
 **Type:** Local-first CLI (Go)
 
