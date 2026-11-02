@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.22.9%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-555555)](#supported-platforms)
-[![Release](https://img.shields.io/badge/Release-v1.1.0-2ea44f)](https://github.com/arjunuxd/uxdguard/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v1.1.1-2ea44f)](https://github.com/arjunuxd/uxdguard/releases/latest)
 [![Local First](https://img.shields.io/badge/Local--First-No%20Telemetry-orange)](docs/privacy.md)
 
 **Build with AI. Commit with confidence.**
@@ -57,7 +57,7 @@ Download from the [latest release](https://github.com/arjunuxd/uxdguard/releases
 #### Windows (PowerShell)
 
 ```powershell
-$v = "v1.1.0"
+$v = "v1.1.1"
 $u = "https://github.com/arjunuxd/uxdguard/releases/download/$v"
 
 Invoke-WebRequest "$u/uxdguard-windows-amd64.exe" -OutFile uxdguard.exe
@@ -86,7 +86,7 @@ Open a new terminal, then check `uxdguard version`.
 #### Linux (x86_64)
 
 ```bash
-V=v1.1.0
+V=v1.1.1
 U="https://github.com/arjunuxd/uxdguard/releases/download/$V"
 
 curl -LO "$U/uxdguard-linux-amd64"
@@ -102,7 +102,7 @@ uxdguard version
 #### macOS (Apple Silicon)
 
 ```bash
-V=v1.1.0
+V=v1.1.1
 U="https://github.com/arjunuxd/uxdguard/releases/download/$V"
 
 curl -LO "$U/uxdguard-darwin-arm64"
@@ -118,31 +118,21 @@ uxdguard version
 
 ### Option 2: Install with Go
 
-This release needs one extra variable because Go's public proxy still holds an
-older artifact for the `v1.1.0` version (see [Known Installation Issue](#known-installation-issue)).
-`GOPRIVATE` makes Go fetch the tag directly from GitHub.
-
-If you already ran the plain `go install` once, Go saved the stale copy in its
-module cache; clear it first:
-
-```bash
-go clean -modcache
-```
-
-This removes all downloaded Go modules; Go re-downloads them as needed.
-
 Linux and macOS:
 
 ```bash
-GOPRIVATE='github.com/arjunuxd/*' go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.1
 ```
 
 Windows PowerShell:
 
 ```powershell
-$env:GOPRIVATE = 'github.com/arjunuxd/*'
-go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0
+go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.1
 ```
+
+The stale public-proxy entry documented in
+[Known Installation Issue](#known-installation-issue) affects only `v1.1.0`;
+`v1.1.1` is a fresh module version.
 
 The binary is written to `$(go env GOPATH)/bin` (`%USERPROFILE%\go\bin` on
 Windows). Add that directory to your `PATH`, then run:
@@ -165,7 +155,7 @@ Expected output:
 ```text
 UXDGuard
 Security Scanner
-Version: 1.1.0
+Version: 1.1.1
 Commit: unknown
 Build date: unknown
 ```
@@ -178,7 +168,7 @@ archives do not carry VCS metadata. Release binaries do include both.
 ```bash
 git clone https://github.com/arjunuxd/uxdguard.git
 cd uxdguard
-git checkout v1.1.0
+git checkout v1.1.1
 go build ./cmd/uxdguard
 ```
 
@@ -209,7 +199,7 @@ Example output:
 
 ```text
 UXDGuard
-Security Scanner · 1.1.0
+Security Scanner · 1.1.1
 
 Project: /path/to/your-project
 
@@ -343,11 +333,11 @@ artifact permanently, so plain `go install ...@v1.1.0` builds old code, and
 Use one of these instead:
 
 - the release binaries (Option 1),
-- the `GOPRIVATE` install command (Option 2),
+- the Go install command for `v1.1.1` (Option 2),
 - a source build from tag `v1.1.0` (Option 3).
 
-This affects only the Go module path for `v1.1.0`. Full details are in
-[docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
+This affects only the Go module path for `v1.1.0`; use `v1.1.1` or later to
+avoid it. Full details are in [docs/VERIFICATION-REPORT.md](docs/VERIFICATION-REPORT.md).
 
 ## Privacy and Security
 

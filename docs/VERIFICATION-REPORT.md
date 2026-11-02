@@ -1,22 +1,22 @@
-﻿# UXDGuard v1.1.0 Verification Report
+﻿# UXDGuard v1.1.1 Verification Report
 
-**Date:** 2026-11-01
-**Version:** 1.1.0
+**Date:** 2026-11-02
+**Version:** 1.1.1
 **Branch:** main
-**Tag:** `v1.1.0` (published; see Release and Tag State)
+**Tag:** `v1.1.1` (published; see Release and Tag State)
 **Go:** go1.22.9 windows/amd64
 **Module:** `github.com/arjunuxd/uxdguard`
 
 ## Scope
 
-This report covers the code, tests, documentation, CLI behaviour, staged scanning, security hardening, and release packaging for UXDGuard v1.1.0. It also records the 2026-11-01 audit and the scan-feedback and pagination changes made after the release tag. No finding categories were removed merely to reduce output; detection was not weakened and all remaining static-analysis findings are documented as intentional or false positives.
+This report covers the code, tests, documentation, CLI behaviour, staged scanning, security hardening, and release packaging for UXDGuard v1.1.1. It includes the 2026-11-01 audit and the scan-feedback, pagination, and hardening changes that were made after the `v1.1.0` tag, so the published `v1.1.1` source and binaries contain them. No finding categories were removed merely to reduce output; detection was not weakened and all remaining static-analysis findings are documented as intentional or false positives.
 
 ## Validation Summary
 
 | Check | Result |
 | --- | --- |
 | `gofmt -w .` / `gofmt -l .` | Clean |
-| `go test -count=1 ./...` | Pass: 63 tests passed, 8 Windows symlink tests skipped, 0 failures, 8 packages |
+| `go test -count=1 ./...` | Pass: 64 tests passed, 8 Windows symlink tests skipped, 0 failures, 8 packages |
 | `go build ./...` | Pass |
 | `go vet ./...` | Pass |
 | `go mod verify` | Pass |
@@ -25,9 +25,9 @@ This report covers the code, tests, documentation, CLI behaviour, staged scannin
 | Cross-build Windows amd64 | Pass |
 | Cross-build Linux amd64 | Pass |
 | Cross-build macOS arm64 | Pass |
-| Linker version injection (`main.version`, `main.commit`, `main.buildDate`) | Pass, reports `1.1.0` and supplied metadata |
+| Linker version injection (`main.version`, `main.commit`, `main.buildDate`) | Pass, reports `1.1.1` and supplied metadata |
 | Untagged local build | Pass, reports `dev` with VCS commit and date |
-| Go module version detection | Pass, verified with a file-based module proxy and with a clean-cache `GOPRIVATE` install of `...@v1.1.0`, both reporting `1.1.0` |
+| Go module version detection | Pass, verified with a file-based module proxy, reporting `1.1.1` |
 | JSON output | Pass, valid JSON with non-null arrays and no progress text |
 | Progress output | Pass, staged lines on the default terminal path; silent for `--json` and `--no-progress` |
 | Terminal pagination | Pass, 30 per page default, page totals, navigation, filters, and out-of-range clamp |
@@ -67,14 +67,14 @@ This report covers the code, tests, documentation, CLI behaviour, staged scannin
 - Linker-injected version, commit, and build date take priority.
 - A build without linker flags reports `dev`, the real VCS revision, and the VCS commit timestamp.
 - Go module metadata is used only when the main module path matches and the version is not `(devel)`.
-- A file-based Go module proxy install of `github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` reports `Version: 1.1.0`; commit and build date remain `unknown` when the module proxy does not carry VCS metadata.
-- The public proxy entry for `v1.1.0` is stale because an earlier artifact was cached for that version on 2026-10-29. A direct install with `GOPRIVATE='github.com/arjunuxd/*'` bypasses the stale proxy and checksum entry, builds the current tag, and reports `Version: 1.1.0`; see Known Limitations.
+- A file-based Go module proxy install of `github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.1` reports `Version: 1.1.1`; commit and build date remain `unknown` because module archives do not carry VCS metadata.
+- The public proxy entry for `v1.1.0` is stale because an earlier artifact was cached for that version on 2026-10-29. `v1.1.1` is a fresh module version, so that entry does not apply to it.
 - Release output format:
 
 ```text
 UXDGuard
 Security Scanner
-Version: 1.1.0
+Version: 1.1.1
 Commit: <commit>
 Build date: <date>
 ```
@@ -175,16 +175,16 @@ No finding indicated a vulnerability that could be exploited by running a scan w
 | `init` then `init` again | First creates config, second prints `config already exists` and exits 2 |
 | `config validate` | Valid before and after `init` |
 | Self-scan of the repository | 71 findings in fixtures/docs, 0 errors, paginated to 3 pages |
-| Linker build `version` | `Version: 1.1.0`, supplied commit and date |
+| Linker build `version` | `Version: 1.1.1`, supplied commit and date |
 | Untagged local build | `Version: dev` with real VCS commit/date |
 
 ## Release and Tag State
 
-- The published tag `v1.1.0` points to commit `75da137ddd1f55777b9824f1417b26a2f5f1c80b`.
-- The GitHub release `v1.1.0` is published, latest, non-draft, and non-prerelease, with six assets.
-- The audit and scan-feedback changes in this report are committed to `main` after the tag.
-- The tag was not moved and no release assets were replaced, because published module versions and release tags are immutable.
-- Therefore, the published `v1.1.0` binaries and the `v1.1.0` source tag do not contain the post-tag hardening and UX changes; source built from the current `main` branch does. A future version tag would be required to ship these changes as a new immutable release.
+- The annotated tag `v1.1.1` points to the release commit on `main`; the tag and the release commit match.
+- The GitHub release `v1.1.1` is published, latest, non-draft, and non-prerelease, with six assets.
+- All six assets match their `.sha256` files and GitHub digests, and the embedded build metadata reports version `1.1.1` and the tagged commit.
+- The published `v1.1.1` source and binaries include the audit hardening, progress feedback, pagination, and staged-path fixes described in this report.
+- The `v1.1.0` tag and its release assets were left unchanged. Published module versions and release tags are immutable, so the historical `v1.1.0` caveats below still apply only to that version.
 
 ## Known Limitations
 
@@ -194,9 +194,9 @@ No finding indicated a vulnerability that could be exploited by running a scan w
 - External integrations depend on separately installed tools and their behaviour. With no configured Semgrep ruleset, `semgrep --config auto` may fetch registry rules over the network; this is opt-in and disabled by default.
 - Eight symlink-dependent tests are skipped on this Windows machine when symlink creation is unavailable; CI exercises them on Linux and macOS.
 - `go test -race` cannot run on this Windows machine because no C compiler is installed; CI runs the race detector on Linux and macOS.
-- `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` and `@latest` use a stale `proxy.golang.org` entry: a pre-release artifact was cached for that version on 2026-10-29, before the final `v1.1.0` tag was created. That artifact reports `Version: 0.1.0-dev`, and forcing `GOPROXY=direct` alone fails with a checksum mismatch because the checksum database record is permanent. Set `GOPRIVATE='github.com/arjunuxd/*'` (or `GONOSUMDB`) to fetch the tag directly from GitHub and skip the stale checksum record; if `v1.1.0` was already downloaded once, run `go clean -modcache` first, because `GOPRIVATE` does not invalidate an existing module cache entry. This was verified to install the current tag code and report `Version: 1.1.0`.
-- The published release assets predate the post-tag commits described above and do not include the new progress or pagination behaviour.
+- `go install github.com/arjunuxd/uxdguard/cmd/uxdguard@v1.1.0` and `@latest` at the time of that release used a stale `proxy.golang.org` entry: a pre-release artifact was cached for that version on 2026-10-29, before the final `v1.1.0` tag was created. That artifact reports `Version: 0.1.0-dev`, and forcing `GOPROXY=direct` alone fails with a checksum mismatch because the checksum database record is permanent. Set `GOPRIVATE='github.com/arjunuxd/*'` (or `GONOSUMDB`) to fetch the tag directly from GitHub and skip the stale checksum record; if `v1.1.0` was already downloaded once, run `go clean -modcache` first. This affects only `v1.1.0`; `v1.1.1` is a fresh module version.
+- The `v1.1.0` release assets predate the post-tag commits described above and do not include the new progress or pagination behaviour. The `v1.1.1` assets do include them.
 
 ## Conclusion
 
-The v1.1.0 codebase, CLI, JSON output, staged scanning, cancellation, configuration handling, and cross-platform builds pass the validation above. The GitHub release is published as the latest stable release. Post-tag audit changes on `main` add progress feedback, 30-per-page defaults, page totals, and the hardening listed above; they are verified locally and are not part of the immutable published `v1.1.0` assets.
+The v1.1.1 codebase, CLI, JSON output, staged scanning, cancellation, configuration handling, and cross-platform builds pass the validation above. The GitHub release is published as the latest stable release, and its binaries, checksums, and tag match the release commit. The previously published `v1.1.0` tag and assets remain unchanged.
